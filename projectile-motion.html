@@ -17,47 +17,159 @@
         }
         h1 {
             font-size: 22px;
-            margin-bottom:10px;
+            margin-bottom: 10px;
         }
         canvas {
             border: 2px solid #3388dd;
-            background-color:#0b1828;
+            background-color: #0b1828;
         }
-        .control-panel{
-            margin-top:12px;
-            display:flex;
-            gap:16px;
-            flex-wrap:wrap;
-            justify-content:center;
+        .control-panel {
+            margin-top: 14px;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 880px;
         }
-        button{
-            padding:6px 14px;
-            font-size:15px;
-            border:none;
-            border-radius:6px;
-            background:#2574d9;
-            color:white;
-            cursor:pointer;
+        .param-group {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 12px 16px;
+            min-width: 180px;
+            flex: 1;
         }
-        button:active{
-            background:#1a5cb0;
+        .param-group .pg-title {
+            font-size: 12px;
+            color: #8899aa;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
         }
-        .info-text{
-            margin-top:10px;
-            font-size:14px;
-            color:#bbbbbb;
+        .param-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
         }
+        .param-row label {
+            font-size: 13px;
+            color: #ccd;
+            white-space: nowrap;
+        }
+        .param-row .val {
+            font-size: 13px;
+            color: #5cb8ff;
+            font-weight: 600;
+            min-width: 50px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        .param-row input[type="range"] {
+            flex: 1;
+            margin: 0 8px;
+            -webkit-appearance: none;
+            height: 5px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.12);
+            outline: none;
+        }
+        .param-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #5cb8ff;
+            cursor: pointer;
+            box-shadow: 0 0 6px rgba(92, 184, 255, 0.4);
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            padding-bottom: 2px;
+        }
+        button {
+            padding: 8px 20px;
+            font-size: 15px;
+            border: none;
+            border-radius: 8px;
+            background: #2574d9;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        button:hover { background: #1a5cb0; }
+        button:active { background: #154a96; }
+        button.reset-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        button.reset-btn:hover { background: rgba(255, 255, 255, 0.14); }
+        .info-text {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #999;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .formula-hint {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #667;
+            text-align: center;
+        }
+        .formula-hint span { color: #5cb8ff; }
     </style>
 </head>
 <body>
     <h1>平抛运动演示（轨迹+分速度）</h1>
     <canvas id="canvas" width="850" height="480"></canvas>
+
     <div class="control-panel">
-        <button id="startBtn">开始平抛</button>
-        <button id="resetBtn">重置</button>
+        <!-- 运动参数 -->
+        <div class="param-group">
+            <div class="pg-title">运动参数</div>
+            <div class="param-row">
+                <label>初速度 v₀</label>
+                <input type="range" id="v0Slider" min="5" max="50" step="1" value="30">
+                <span class="val" id="v0Val">30 m/s</span>
+            </div>
+            <div class="param-row">
+                <label>重力加速度 g</label>
+                <input type="range" id="gSlider" min="1" max="20" step="0.5" value="10">
+                <span class="val" id="gVal">10 m/s²</span>
+            </div>
+            <div class="param-row">
+                <label>抛出高度 H</label>
+                <input type="range" id="hSlider" min="0" max="15" step="0.5" value="5">
+                <span class="val" id="hVal">5 m</span>
+            </div>
+        </div>
+
+        <!-- 动画设置 -->
+        <div class="param-group">
+            <div class="pg-title">动画设置</div>
+            <div class="param-row">
+                <label>动画速度</label>
+                <input type="range" id="speedSlider" min="0.2" max="3" step="0.1" value="1">
+                <span class="val" id="speedVal">1.0x</span>
+            </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="btn-group">
+            <button id="startBtn">开始平抛</button>
+            <button id="resetBtn" class="reset-btn">重置</button>
+        </div>
     </div>
-    <div class="info-text">
-        水平初速度 v₀ = 30m/s，g = 10m/s²；蓝色箭头‑水平分速度，绿色箭头‑竖直分速度，橙色‑合速度
+
+    <div class="info-text" id="infoText">
+        v₀ = 30 m/s，g = 10 m/s²，H = 5 m &nbsp;|&nbsp;
+        蓝色 = vₓ &nbsp; 绿色 = vᵧ &nbsp; 橙色 = 合速度
+    </div>
+    <div class="formula-hint">
+        水平：<span>x = v₀t</span> &nbsp; 竖直：<span>y = ½gt²</span> &nbsp;
+        vₓ = <span>v₀</span>（匀速） &nbsp; vᵧ = <span>gt</span>
     </div>
 
     <script>
@@ -66,27 +178,58 @@
         const startBtn = document.getElementById('startBtn');
         const resetBtn = document.getElementById('resetBtn');
 
-        //物理参数
-        const g = 10;
-        const v0 = 30;
-        const scale = 2.2;   //像素/米
-        const originX = 80;
-        const originY = 80;
+        // --- 可调参数（通过滑块改变） ---
+        let v0 = 30;          // 水平初速度 m/s
+        let g   = 10;         // 重力加速度 m/s²
+        let H   = 5;          // 抛出高度 m
+        let animSpeed = 1.0;  // 动画倍速
+
+        const scale = 2.2;    // 像素/米
+        const originX = 80;   // 坐标原点 X
+        const originY = 80;   // 坐标原点 Y（画布顶部参考线）
+        const groundY = canvas.height - 30; // 地面 Y 坐标
 
         let t = 0;
         let running = false;
         let animId = null;
-        let tracePoints = []; //保存轨迹点
+        let tracePoints = [];
 
+        // --- 滑块绑定 ---
+        const sliders = {
+            v0Slider:  { key: 'v0',        unit: 'm/s',  fmt: v => v.toFixed(0) },
+            gSlider:   { key: 'g',         unit: 'm/s²', fmt: v => v.toFixed(1) },
+            hSlider:   { key: 'H',        unit: 'm',    fmt: v => v.toFixed(1) },
+            speedSlider: { key: 'animSpeed', unit: 'x',  fmt: v => v.toFixed(1) },
+        };
+
+        Object.entries(sliders).forEach(([id, cfg]) => {
+            const slider = document.getElementById(id);
+            const valEl = document.getElementById(id.replace('Slider', 'Val'));
+            slider.addEventListener('input', () => {
+                const v = parseFloat(slider.value);
+                window[cfg.key] = v;
+                valEl.textContent = cfg.fmt(v) + ' ' + cfg.unit;
+                updateInfoText();
+                if (!running) reset();
+            });
+        });
+
+        function updateInfoText() {
+            document.getElementById('infoText').innerHTML =
+                `v₀ = ${v0.toFixed(0)} m/s，g = ${g.toFixed(1)} m/s²，H = ${H.toFixed(1)} m &nbsp;|&nbsp;` +
+                `蓝色 = vₓ &nbsp; 绿色 = vᵧ &nbsp; 橙色 = 合速度`;
+        }
+
+        // --- 重置 ---
         function reset(){
-            if(animId) cancelAnimationFrame(animId);
+            if (animId) cancelAnimationFrame(animId);
             running = false;
             t = 0;
             tracePoints = [];
             draw();
         }
 
-        //画箭头工具函数
+        // --- 箭头绘制 ---
         function drawArrow(fromX, fromY, toX, toY, color){
             ctx.strokeStyle = color;
             ctx.fillStyle = color;
@@ -95,99 +238,162 @@
             ctx.moveTo(fromX, fromY);
             ctx.lineTo(toX, toY);
             ctx.stroke();
-            //箭头三角
-            const headLen = 8;
-            const angle = Math.atan2(toY-fromY, toX-fromX);
+
+            const headLen = 10;
+            const angle = Math.atan2(toY - fromY, toX - fromX);
             ctx.beginPath();
-            ctx.moveTo(toX,toY);
-            ctx.lineTo(toX-headLen*Math.cos(angle-Math.PI/6), toY-headLen*Math.sin(angle-Math.PI/6));
-            ctx.lineTo(toX-headLen*Math.cos(angle+Math.PI/6), toY-headLen*Math.sin(angle+Math.PI/6));
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headLen * Math.cos(angle - Math.PI / 6), toY - headLen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(toX - headLen * Math.cos(angle + Math.PI / 6), toY - headLen * Math.sin(angle + Math.PI / 6));
             ctx.closePath();
             ctx.fill();
         }
 
+        // --- 主绘制 ---
         function draw(){
-            ctx.clearRect(0,0,canvas.width,canvas.height);
-            const groundY = canvas.height -30;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            //坐标轴
-            ctx.strokeStyle="#4477bb";
-            ctx.lineWidth=2;
+            // 抛出点（画布坐标）
+            const launchY = originY + H * scale;
+            // 当前位置
+            const x = originX + v0 * t * scale;
+            const y = launchY + 0.5 * g * t * t * scale;
+            const vy = g * t;
+            const vx = v0;
+
+            // 落地终止
+            if (y >= groundY || x >= canvas.width) {
+                running = false;
+            }
+
+            // 保存轨迹
+            if (running) {
+                tracePoints.push({ x, y });
+            }
+
+            // --- 画地面 ---
+            ctx.strokeStyle = 'rgba(52, 211, 153, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(originX - 10, groundY);
+            ctx.lineTo(canvas.width - 20, groundY);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(52, 211, 153, 0.04)';
+            ctx.fillRect(originX - 10, groundY, canvas.width - originX - 10, 30);
+
+            // --- 画坐标轴 ---
+            ctx.strokeStyle = '#4477bb';
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.moveTo(originX, originY);
-            ctx.lineTo(canvas.width-20, originY);
+            ctx.lineTo(canvas.width - 20, originY);
             ctx.stroke();
             ctx.beginPath();
             ctx.moveTo(originX, originY);
             ctx.lineTo(originX, groundY);
             ctx.stroke();
 
-            //平抛公式
-            const x = originX + v0 * t * scale;
-            const y = originY + 0.5 * g * t * t * scale;
-            const vy = g * t;      //竖直瞬时速度
-            const vx = v0;         //水平速度保持不变
+            // --- 发射台 ---
+            const platW = 24;
+            ctx.fillStyle = 'rgba(92, 184, 255, 0.2)';
+            ctx.fillRect(originX - platW / 2, launchY - 4, platW, 4);
+            ctx.strokeStyle = 'rgba(92, 184, 255, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(originX - platW / 2, launchY - 4, platW, 4);
 
-            //落地终止
-            if(y >= groundY || x >= canvas.width){
-                running = false;
-            }
-
-            //保存轨迹点
-            if(running){
-                tracePoints.push({x,y});
-            }
-
-            //绘制运动轨迹
-            if(tracePoints.length>1){
+            // H 高度标注线
+            if (H > 0.5) {
+                const hPx = H * scale;
+                ctx.strokeStyle = 'rgba(251, 191, 36, 0.35)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 3]);
+                ctx.beginPath();
+                ctx.moveTo(originX - platW / 2 - 12, groundY);
+                ctx.lineTo(originX - platW / 2 - 12, launchY);
+                ctx.stroke();
                 ctx.setLineDash([]);
-                ctx.strokeStyle="#ff8888";
-                ctx.lineWidth=2;
+
+                // 箭头
+                const midY = (groundY + launchY) / 2;
+                ctx.fillStyle = 'rgba(251, 191, 36, 0.7)';
+                ctx.beginPath();
+                ctx.moveTo(originX - platW / 2 - 16, midY);
+                ctx.lineTo(originX - platW / 2 - 12, midY + 5);
+                ctx.lineTo(originX - platW / 2 - 8, midY);
+                ctx.fill();
+
+                ctx.fillStyle = '#fbbf24';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('H=' + H.toFixed(1) + 'm', originX - platW / 2 - 10, launchY - 6);
+            }
+
+            // --- 轨迹线 ---
+            if (tracePoints.length > 1) {
+                // 虚线（理论预测）
+                const tFlight = Math.sqrt(2 * (groundY - launchY) / (g * scale)) / scale;
+                // Actually let me just draw the actual trajectory with a glow
+                ctx.strokeStyle = 'rgba(255, 100, 100, 0.25)';
+                ctx.lineWidth = 8;
                 ctx.beginPath();
                 ctx.moveTo(tracePoints[0].x, tracePoints[0].y);
-                for(let p of tracePoints){
-                    ctx.lineTo(p.x,p.y);
-                }
+                for (const p of tracePoints) ctx.lineTo(p.x, p.y);
+                ctx.stroke();
+
+                ctx.strokeStyle = '#ff8888';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(tracePoints[0].x, tracePoints[0].y);
+                for (const p of tracePoints) ctx.lineTo(p.x, p.y);
                 ctx.stroke();
             }
 
-            //小球
+            // --- 小球 ---
             ctx.beginPath();
-            ctx.fillStyle="#ff3333";
-            ctx.arc(x, y, 11,0,Math.PI*2);
+            const ballGrad = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 11);
+            ballGrad.addColorStop(0, '#fff');
+            ballGrad.addColorStop(0.4, '#ff5555');
+            ballGrad.addColorStop(1, '#cc0000');
+            ctx.fillStyle = ballGrad;
+            ctx.arc(x, y, 11, 0, Math.PI * 2);
             ctx.fill();
 
-            //绘制速度箭头
-            const velScale = 1.8; //速度箭头缩放系数
-            //水平分速度 vx 蓝色
-            drawArrow(x, y, x + vx*velScale, y, "#3399ff");
-            //竖直分速度 vy 绿色
-            drawArrow(x, y, x, y + vy*velScale, "#33dd66");
-            //合速度 橙色
-            drawArrow(x, y, x+vx*velScale, y+vy*velScale, "#ffaa22");
+            // --- 速度箭头 ---
+            const velScale = 1.8;
+            drawArrow(x, y, x + vx * velScale, y, '#3399ff');      // vx 蓝
+            drawArrow(x, y, x, y + vy * velScale, '#33dd66');       // vy 绿
+            drawArrow(x, y, x + vx * velScale, y + vy * velScale, '#ffaa22'); // v 橙
 
-            //文本数据
-            ctx.fillStyle="#dddddd";
-            ctx.font="15px sans-serif";
-            ctx.fillText(`时间 t = ${t.toFixed(2)} s`,20,canvas.height-12);
-            ctx.fillText(`水平速度 vₓ = ${vx.toFixed(1)} m/s`,160,canvas.height-12);
-            ctx.fillText(`竖直速度 vᵧ = ${vy.toFixed(1)} m/s`,380,canvas.height-12);
-            ctx.fillText(`合速度 v = ${Math.hypot(vx,vy).toFixed(1)} m/s`,600,canvas.height-12);
+            // --- 底部数据文字 ---
+            ctx.fillStyle = '#aaaaaa';
+            ctx.font = '14px sans-serif';
+            ctx.fillText(`t = ${t.toFixed(2)} s`, 20, canvas.height - 12);
+            ctx.fillText(`vₓ = ${vx.toFixed(1)} m/s`, 160, canvas.height - 12);
+            ctx.fillText(`vᵧ = ${vy.toFixed(1)} m/s`, 380, canvas.height - 12);
+            ctx.fillText(`v = ${Math.hypot(vx, vy).toFixed(1)} m/s`, 600, canvas.height - 12);
 
-            if(running){
-                t += 0.025;
+            // --- 原点标注 ---
+            ctx.fillStyle = '#5577aa';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('O', originX - 16, originY + 14);
+
+            if (running) {
+                t += 0.025 * animSpeed;
                 animId = requestAnimationFrame(draw);
             }
         }
 
-        startBtn.onclick = function(){
-            if(!running){
-                running=true;
+        // --- 事件 ---
+        startBtn.onclick = function () {
+            if (!running) {
+                running = true;
                 draw();
             }
-        }
+        };
         resetBtn.onclick = reset;
 
+        // 初始绘制
         reset();
     </script>
 </body>
