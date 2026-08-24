@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平抛运动演示｜高中物理</title>
+    <style>
+        * {margin: 0; padding: 0; box-sizing: border-box;}
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 10px;
+        }
+        h1 {
+            font-size: 22px;
+            margin-bottom:10px;
+        }
+        canvas {
+            border: 2px solid #3388dd;
+            background-color:#0b1828;
+        }
+        .control-panel{
+            margin-top:12px;
+            display:flex;
+            gap:16px;
+            flex-wrap:wrap;
+            justify-content:center;
+        }
+        button{
+            padding:6px 14px;
+            font-size:15px;
+            border:none;
+            border-radius:6px;
+            background:#2574d9;
+            color:white;
+            cursor:pointer;
+        }
+        button:active{
+            background:#1a5cb0;
+        }
+        .info-text{
+            margin-top:10px;
+            font-size:14px;
+            color:#bbbbbb;
+        }
+    </style>
+</head>
+<body>
+    <h1>平抛运动演示（轨迹+分速度）</h1>
+    <canvas id="canvas" width="850" height="480"></canvas>
+    <div class="control-panel">
+        <button id="startBtn">开始平抛</button>
+        <button id="resetBtn">重置</button>
+    </div>
+    <div class="info-text">
+        水平初速度 v₀ = 30m/s，g = 10m/s²；蓝色箭头‑水平分速度，绿色箭头‑竖直分速度，橙色‑合速度
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        //物理参数
+        const g = 10;
+        const v0 = 30;
+        const scale = 2.2;   //像素/米
+        const originX = 80;
+        const originY = 80;
+
+        let t = 0;
+        let running = false;
+        let animId = null;
+        let tracePoints = []; //保存轨迹点
+
+        function reset(){
+            if(animId) cancelAnimationFrame(animId);
+            running = false;
+            t = 0;
+            tracePoints = [];
+            draw();
+        }
+
+        //画箭头工具函数
+        function drawArrow(fromX, fromY, toX, toY, color){
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.stroke();
+            //箭头三角
+            const headLen = 8;
+            const angle = Math.atan2(toY-fromY, toX-fromX);
+            ctx.beginPath();
+            ctx.moveTo(toX,toY);
+            ctx.lineTo(toX-headLen*Math.cos(angle-Math.PI/6), toY-headLen*Math.sin(angle-Math.PI/6));
+            ctx.lineTo(toX-headLen*Math.cos(angle+Math.PI/6), toY-headLen*Math.sin(angle+Math.PI/6));
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function draw(){
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            const groundY = canvas.height -30;
+
+            //坐标轴
+            ctx.strokeStyle="#4477bb";
+            ctx.lineWidth=2;
+            ctx.beginPath();
+            ctx.moveTo(originX, originY);
+            ctx.lineTo(canvas.width-20, originY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(originX, originY);
+            ctx.lineTo(originX, groundY);
+            ctx.stroke();
+
+            //平抛公式
+            const x = originX + v0 * t * scale;
+            const y = originY + 0.5 * g * t * t * scale;
+            const vy = g * t;      //竖直瞬时速度
+            const vx = v0;         //水平速度保持不变
+
+            //落地终止
+            if(y >= groundY || x >= canvas.width){
+                running = false;
+            }
+
+            //保存轨迹点
+            if(running){
+                tracePoints.push({x,y});
+            }
+
+            //绘制运动轨迹
+            if(tracePoints.length>1){
+                ctx.setLineDash([]);
+                ctx.strokeStyle="#ff8888";
+                ctx.lineWidth=2;
+                ctx.beginPath();
+                ctx.moveTo(tracePoints[0].x, tracePoints[0].y);
+                for(let p of tracePoints){
+                    ctx.lineTo(p.x,p.y);
+                }
+                ctx.stroke();
+            }
+
+            //小球
+            ctx.beginPath();
+            ctx.fillStyle="#ff3333";
+            ctx.arc(x, y, 11,0,Math.PI*2);
+            ctx.fill();
+
+            //绘制速度箭头
+            const velScale = 1.8; //速度箭头缩放系数
+            //水平分速度 vx 蓝色
+            drawArrow(x, y, x + vx*velScale, y, "#3399ff");
+            //竖直分速度 vy 绿色
+            drawArrow(x, y, x, y + vy*velScale, "#33dd66");
+            //合速度 橙色
+            drawArrow(x, y, x+vx*velScale, y+vy*velScale, "#ffaa22");
+
+            //文本数据
+            ctx.fillStyle="#dddddd";
+            ctx.font="15px sans-serif";
+            ctx.fillText(`时间 t = ${t.toFixed(2)} s`,20,canvas.height-12);
+            ctx.fillText(`水平速度 vₓ = ${vx.toFixed(1)} m/s`,160,canvas.height-12);
+            ctx.fillText(`竖直速度 vᵧ = ${vy.toFixed(1)} m/s`,380,canvas.height-12);
+            ctx.fillText(`合速度 v = ${Math.hypot(vx,vy).toFixed(1)} m/s`,600,canvas.height-12);
+
+            if(running){
+                t += 0.025;
+                animId = requestAnimationFrame(draw);
+            }
+        }
+
+        startBtn.onclick = function(){
+            if(!running){
+                running=true;
+                draw();
+            }
+        }
+        resetBtn.onclick = reset;
+
+        reset();
+    </script>
+</body>
+</html>
