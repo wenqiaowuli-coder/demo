@@ -158,7 +158,7 @@
 
         <!-- 操作按钮 -->
         <div class="btn-group">
-            <button id="startBtn">开始平抛</button>
+            <button id="actionBtn">开始平抛</button>
             <button id="resetBtn" class="reset-btn">重置</button>
         </div>
     </div>
@@ -172,7 +172,7 @@
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const startBtn = document.getElementById('startBtn');
+        const actionBtn = document.getElementById('actionBtn');
         const resetBtn = document.getElementById('resetBtn');
 
         // ===== 唯一参数源：所有可调参数集中在这里 =====
@@ -190,7 +190,8 @@
         const GROUND_Y = canvas.height - 30;
 
         let t = 0;
-        let running = false;
+        let running = false;   // 动画是否正在推进
+        let paused = false;    // 是否暂停
         let animId = null;
         let tracePoints = [];
 
@@ -232,8 +233,10 @@
         function reset() {
             if (animId) cancelAnimationFrame(animId);
             running = false;
+            paused = false;
             t = 0;
             tracePoints = [];
+            updateActionBtn();
             draw();
         }
 
@@ -273,6 +276,8 @@
             // 落地终止
             if (y >= GROUND_Y || x >= canvas.width) {
                 running = false;
+                paused = false;
+                updateActionBtn();
             }
 
             // 保存轨迹
@@ -383,19 +388,44 @@
             ctx.fillText('O', ORIGIN_X - 16, ORIGIN_Y + 14);
 
             // 动画步进
-            if (running) {
+            if (running && !paused) {
                 t += 0.025 * params.animSpeed;
                 animId = requestAnimationFrame(draw);
             }
         }
 
+        // ===== 按钮文字同步 =====
+        function updateActionBtn() {
+            if (paused)       actionBtn.textContent = '继续';
+            else if (running) actionBtn.textContent = '暂停';
+            else              actionBtn.textContent = '开始平抛';
+        }
+
         // ===== 按钮事件 =====
-        startBtn.onclick = () => { if (!running) { running = true; draw(); } };
+        actionBtn.onclick = () => {
+            if (!running && !paused) {
+                // 空闲 → 开始
+                running = true;
+                updateActionBtn();
+                draw();
+            } else if (running && !paused) {
+                // 运行中 → 暂停
+                paused = true;
+                if (animId) cancelAnimationFrame(animId);
+                updateActionBtn();
+            } else if (paused) {
+                // 暂停中 → 继续
+                paused = false;
+                updateActionBtn();
+                draw();
+            }
+        };
         resetBtn.onclick = reset;
 
         // ===== 启动：从 DOM 读取滑块初始值，统一到 params =====
         syncParamsFromDOM();
         refreshInfoText();
+        updateActionBtn();
         reset();
     </script>
 </body>
