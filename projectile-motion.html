@@ -48,25 +48,25 @@
         .param-row {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 8px;
             margin-bottom: 6px;
         }
         .param-row label {
             font-size: 13px;
             color: #ccd;
             white-space: nowrap;
+            min-width: 72px;
         }
         .param-row .val {
             font-size: 13px;
             color: #5cb8ff;
             font-weight: 600;
-            min-width: 50px;
+            min-width: 58px;
             text-align: right;
             font-variant-numeric: tabular-nums;
         }
         .param-row input[type="range"] {
             flex: 1;
-            margin: 0 8px;
             -webkit-appearance: none;
             height: 5px;
             border-radius: 3px;
@@ -163,10 +163,7 @@
         </div>
     </div>
 
-    <div class="info-text" id="infoText">
-        v₀ = 30 m/s，g = 10 m/s²，H = 5 m &nbsp;|&nbsp;
-        蓝色 = vₓ &nbsp; 绿色 = vᵧ &nbsp; 橙色 = 合速度
-    </div>
+    <div class="info-text" id="infoText"></div>
     <div class="formula-hint">
         水平：<span>x = v₀t</span> &nbsp; 竖直：<span>y = ½gt²</span> &nbsp;
         vₓ = <span>v₀</span>（匀速） &nbsp; vᵧ = <span>gt</span>
@@ -178,50 +175,61 @@
         const startBtn = document.getElementById('startBtn');
         const resetBtn = document.getElementById('resetBtn');
 
-        // --- 可调参数（通过滑块改变） ---
-        let v0 = 30;          // 水平初速度 m/s
-        let g   = 10;         // 重力加速度 m/s²
-        let H   = 5;          // 抛出高度 m
-        let animSpeed = 1.0;  // 动画倍速
+        // ===== 唯一参数源：所有可调参数集中在这里 =====
+        const params = {
+            v0: 30,            // 水平初速度 m/s
+            g: 10,             // 重力加速度 m/s²
+            H: 5,              // 抛出高度 m
+            animSpeed: 1.0,    // 动画倍速
+        };
 
-        const scale = 2.2;    // 像素/米
-        const originX = 80;   // 坐标原点 X
-        const originY = 80;   // 坐标原点 Y（画布顶部参考线）
-        const groundY = canvas.height - 30; // 地面 Y 坐标
+        // 常量（不可通过滑块调节）
+        const SCALE = 2.2;    // 像素/米
+        const ORIGIN_X = 80;  // 坐标原点 X
+        const ORIGIN_Y = 80;  // 坐标原点 Y
+        const GROUND_Y = canvas.height - 30;
 
         let t = 0;
         let running = false;
         let animId = null;
         let tracePoints = [];
 
-        // --- 滑块绑定 ---
-        const sliders = {
-            v0Slider:  { key: 'v0',        unit: 'm/s',  fmt: v => v.toFixed(0) },
-            gSlider:   { key: 'g',         unit: 'm/s²', fmt: v => v.toFixed(1) },
-            hSlider:   { key: 'H',        unit: 'm',    fmt: v => v.toFixed(1) },
-            speedSlider: { key: 'animSpeed', unit: 'x',  fmt: v => v.toFixed(1) },
-        };
+        // ===== 从 HTML 滑块读取默认值初始化（不用写死） =====
+        function syncParamsFromDOM() {
+            params.v0        = parseFloat(document.getElementById('v0Slider').value);
+            params.g         = parseFloat(document.getElementById('gSlider').value);
+            params.H         = parseFloat(document.getElementById('hSlider').value);
+            params.animSpeed = parseFloat(document.getElementById('speedSlider').value);
+        }
 
-        Object.entries(sliders).forEach(([id, cfg]) => {
+        // ===== 滑块绑定（改 params 对象，不用 window.xxx） =====
+        const sliderConfig = [
+            { id: 'v0Slider',    key: 'v0',        unit: 'm/s',  decimals: 0 },
+            { id: 'gSlider',     key: 'g',         unit: 'm/s²', decimals: 1 },
+            { id: 'hSlider',     key: 'H',         unit: 'm',    decimals: 1 },
+            { id: 'speedSlider', key: 'animSpeed',  unit: 'x',    decimals: 1 },
+        ];
+
+        sliderConfig.forEach(({ id, key, unit, decimals }) => {
             const slider = document.getElementById(id);
-            const valEl = document.getElementById(id.replace('Slider', 'Val'));
+            const valEl  = document.getElementById(id.replace('Slider', 'Val'));
             slider.addEventListener('input', () => {
-                const v = parseFloat(slider.value);
-                window[cfg.key] = v;
-                valEl.textContent = cfg.fmt(v) + ' ' + cfg.unit;
-                updateInfoText();
-                if (!running) reset();
+                params[key] = parseFloat(slider.value);
+                valEl.textContent = params[key].toFixed(decimals) + ' ' + unit;
+                refreshInfoText();
+                if (!running) draw();
             });
         });
 
-        function updateInfoText() {
-            document.getElementById('infoText').innerHTML =
-                `v₀ = ${v0.toFixed(0)} m/s，g = ${g.toFixed(1)} m/s²，H = ${H.toFixed(1)} m &nbsp;|&nbsp;` +
-                `蓝色 = vₓ &nbsp; 绿色 = vᵧ &nbsp; 橙色 = 合速度`;
+        // ===== 底部信息文字 =====
+        function refreshInfoText() {
+            document.getElementById('infoText').textContent =
+                `v₀ = ${params.v0.toFixed(0)} m/s  |  g = ${params.g.toFixed(1)} m/s²  |  H = ${params.H.toFixed(1)} m` +
+                `    蓝色=vₓ  绿色=vᵧ  橙色=合速度`;
         }
 
-        // --- 重置 ---
-        function reset(){
+        // ===== 重置 =====
+        function reset() {
             if (animId) cancelAnimationFrame(animId);
             running = false;
             t = 0;
@@ -229,40 +237,41 @@
             draw();
         }
 
-        // --- 箭头绘制 ---
-        function drawArrow(fromX, fromY, toX, toY, color){
+        // ===== 箭头 =====
+        function drawArrow(fx, fy, tx, ty, color) {
             ctx.strokeStyle = color;
             ctx.fillStyle = color;
             ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.moveTo(fromX, fromY);
-            ctx.lineTo(toX, toY);
+            ctx.moveTo(fx, fy);
+            ctx.lineTo(tx, ty);
             ctx.stroke();
 
             const headLen = 10;
-            const angle = Math.atan2(toY - fromY, toX - fromX);
+            const angle = Math.atan2(ty - fy, tx - fx);
             ctx.beginPath();
-            ctx.moveTo(toX, toY);
-            ctx.lineTo(toX - headLen * Math.cos(angle - Math.PI / 6), toY - headLen * Math.sin(angle - Math.PI / 6));
-            ctx.lineTo(toX - headLen * Math.cos(angle + Math.PI / 6), toY - headLen * Math.sin(angle + Math.PI / 6));
+            ctx.moveTo(tx, ty);
+            ctx.lineTo(tx - headLen * Math.cos(angle - Math.PI / 6), ty - headLen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(tx - headLen * Math.cos(angle + Math.PI / 6), ty - headLen * Math.sin(angle + Math.PI / 6));
             ctx.closePath();
             ctx.fill();
         }
 
-        // --- 主绘制 ---
-        function draw(){
+        // ===== 主绘制 =====
+        function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 抛出点（画布坐标）
-            const launchY = originY + H * scale;
-            // 当前位置
-            const x = originX + v0 * t * scale;
-            const y = launchY + 0.5 * g * t * t * scale;
-            const vy = g * t;
-            const vx = v0;
+            // 抛出点画布坐标
+            const launchY = ORIGIN_Y + params.H * SCALE;
+
+            // 当前位置（物理公式）
+            const x  = ORIGIN_X + params.v0 * t * SCALE;
+            const y  = launchY + 0.5 * params.g * t * t * SCALE;
+            const vy = params.g * t;
+            const vx = params.v0;
 
             // 落地终止
-            if (y >= groundY || x >= canvas.width) {
+            if (y >= GROUND_Y || x >= canvas.width) {
                 running = false;
             }
 
@@ -271,69 +280,64 @@
                 tracePoints.push({ x, y });
             }
 
-            // --- 画地面 ---
+            // --- 地面 ---
             ctx.strokeStyle = 'rgba(52, 211, 153, 0.3)';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(originX - 10, groundY);
-            ctx.lineTo(canvas.width - 20, groundY);
+            ctx.moveTo(ORIGIN_X - 10, GROUND_Y);
+            ctx.lineTo(canvas.width - 20, GROUND_Y);
             ctx.stroke();
             ctx.fillStyle = 'rgba(52, 211, 153, 0.04)';
-            ctx.fillRect(originX - 10, groundY, canvas.width - originX - 10, 30);
+            ctx.fillRect(ORIGIN_X - 10, GROUND_Y, canvas.width - ORIGIN_X - 10, 30);
 
-            // --- 画坐标轴 ---
+            // --- 坐标轴 ---
             ctx.strokeStyle = '#4477bb';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.moveTo(originX, originY);
-            ctx.lineTo(canvas.width - 20, originY);
+            ctx.moveTo(ORIGIN_X, ORIGIN_Y);
+            ctx.lineTo(canvas.width - 20, ORIGIN_Y);
             ctx.stroke();
             ctx.beginPath();
-            ctx.moveTo(originX, originY);
-            ctx.lineTo(originX, groundY);
+            ctx.moveTo(ORIGIN_X, ORIGIN_Y);
+            ctx.lineTo(ORIGIN_X, GROUND_Y);
             ctx.stroke();
 
             // --- 发射台 ---
             const platW = 24;
             ctx.fillStyle = 'rgba(92, 184, 255, 0.2)';
-            ctx.fillRect(originX - platW / 2, launchY - 4, platW, 4);
+            ctx.fillRect(ORIGIN_X - platW / 2, launchY - 4, platW, 4);
             ctx.strokeStyle = 'rgba(92, 184, 255, 0.5)';
             ctx.lineWidth = 1;
-            ctx.strokeRect(originX - platW / 2, launchY - 4, platW, 4);
+            ctx.strokeRect(ORIGIN_X - platW / 2, launchY - 4, platW, 4);
 
-            // H 高度标注线
-            if (H > 0.5) {
-                const hPx = H * scale;
+            // H 高度标注
+            if (params.H > 0.5) {
                 ctx.strokeStyle = 'rgba(251, 191, 36, 0.35)';
                 ctx.lineWidth = 1;
                 ctx.setLineDash([4, 3]);
                 ctx.beginPath();
-                ctx.moveTo(originX - platW / 2 - 12, groundY);
-                ctx.lineTo(originX - platW / 2 - 12, launchY);
+                ctx.moveTo(ORIGIN_X - platW / 2 - 12, GROUND_Y);
+                ctx.lineTo(ORIGIN_X - platW / 2 - 12, launchY);
                 ctx.stroke();
                 ctx.setLineDash([]);
 
-                // 箭头
-                const midY = (groundY + launchY) / 2;
+                const midY = (GROUND_Y + launchY) / 2;
                 ctx.fillStyle = 'rgba(251, 191, 36, 0.7)';
                 ctx.beginPath();
-                ctx.moveTo(originX - platW / 2 - 16, midY);
-                ctx.lineTo(originX - platW / 2 - 12, midY + 5);
-                ctx.lineTo(originX - platW / 2 - 8, midY);
+                ctx.moveTo(ORIGIN_X - platW / 2 - 16, midY);
+                ctx.lineTo(ORIGIN_X - platW / 2 - 12, midY + 5);
+                ctx.lineTo(ORIGIN_X - platW / 2 - 8, midY);
                 ctx.fill();
 
                 ctx.fillStyle = '#fbbf24';
                 ctx.font = '11px sans-serif';
                 ctx.textAlign = 'left';
-                ctx.fillText('H=' + H.toFixed(1) + 'm', originX - platW / 2 - 10, launchY - 6);
+                ctx.fillText('H=' + params.H.toFixed(1) + 'm', ORIGIN_X - platW / 2 - 10, launchY - 6);
             }
 
-            // --- 轨迹线 ---
+            // --- 轨迹线（发光 + 实线） ---
             if (tracePoints.length > 1) {
-                // 虚线（理论预测）
-                const tFlight = Math.sqrt(2 * (groundY - launchY) / (g * scale)) / scale;
-                // Actually let me just draw the actual trajectory with a glow
-                ctx.strokeStyle = 'rgba(255, 100, 100, 0.25)';
+                ctx.strokeStyle = 'rgba(255, 100, 100, 0.2)';
                 ctx.lineWidth = 8;
                 ctx.beginPath();
                 ctx.moveTo(tracePoints[0].x, tracePoints[0].y);
@@ -348,23 +352,23 @@
                 ctx.stroke();
             }
 
-            // --- 小球 ---
+            // --- 小球（径向渐变） ---
             ctx.beginPath();
-            const ballGrad = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 11);
-            ballGrad.addColorStop(0, '#fff');
-            ballGrad.addColorStop(0.4, '#ff5555');
-            ballGrad.addColorStop(1, '#cc0000');
-            ctx.fillStyle = ballGrad;
+            const grad = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 11);
+            grad.addColorStop(0, '#ffffff');
+            grad.addColorStop(0.4, '#ff5555');
+            grad.addColorStop(1, '#cc0000');
+            ctx.fillStyle = grad;
             ctx.arc(x, y, 11, 0, Math.PI * 2);
             ctx.fill();
 
             // --- 速度箭头 ---
             const velScale = 1.8;
-            drawArrow(x, y, x + vx * velScale, y, '#3399ff');      // vx 蓝
-            drawArrow(x, y, x, y + vy * velScale, '#33dd66');       // vy 绿
-            drawArrow(x, y, x + vx * velScale, y + vy * velScale, '#ffaa22'); // v 橙
+            drawArrow(x, y, x + vx * velScale, y, '#3399ff');
+            drawArrow(x, y, x, y + vy * velScale, '#33dd66');
+            drawArrow(x, y, x + vx * velScale, y + vy * velScale, '#ffaa22');
 
-            // --- 底部数据文字 ---
+            // --- 底部数据 ---
             ctx.fillStyle = '#aaaaaa';
             ctx.font = '14px sans-serif';
             ctx.fillText(`t = ${t.toFixed(2)} s`, 20, canvas.height - 12);
@@ -372,28 +376,26 @@
             ctx.fillText(`vᵧ = ${vy.toFixed(1)} m/s`, 380, canvas.height - 12);
             ctx.fillText(`v = ${Math.hypot(vx, vy).toFixed(1)} m/s`, 600, canvas.height - 12);
 
-            // --- 原点标注 ---
+            // 原点标注
             ctx.fillStyle = '#5577aa';
             ctx.font = '12px sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText('O', originX - 16, originY + 14);
+            ctx.fillText('O', ORIGIN_X - 16, ORIGIN_Y + 14);
 
+            // 动画步进
             if (running) {
-                t += 0.025 * animSpeed;
+                t += 0.025 * params.animSpeed;
                 animId = requestAnimationFrame(draw);
             }
         }
 
-        // --- 事件 ---
-        startBtn.onclick = function () {
-            if (!running) {
-                running = true;
-                draw();
-            }
-        };
+        // ===== 按钮事件 =====
+        startBtn.onclick = () => { if (!running) { running = true; draw(); } };
         resetBtn.onclick = reset;
 
-        // 初始绘制
+        // ===== 启动：从 DOM 读取滑块初始值，统一到 params =====
+        syncParamsFromDOM();
+        refreshInfoText();
         reset();
     </script>
 </body>
