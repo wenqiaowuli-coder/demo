@@ -155,10 +155,13 @@
             overflow: hidden;
             background: #060a14;
             border: 1px solid rgba(255, 255, 255, 0.06);
+            aspect-ratio: 8 / 5;
+            max-height: 520px;
         }
         .canvas-wrapper canvas {
             display: block;
             width: 100%;
+            height: 100%;
         }
         .canvas-overlay {
             position: absolute;
@@ -567,15 +570,15 @@
 <div class="charts-container">
     <div class="chart-card">
         <div class="card-title">轨迹图 (x-y)</div>
-        <canvas id="trajectoryChart" height="220"></canvas>
+        <canvas id="trajectoryChart" width="400" height="220"></canvas>
     </div>
     <div class="chart-card">
         <div class="card-title">水平位移 - 时间 (x-t)</div>
-        <canvas id="xtChart" height="220"></canvas>
+        <canvas id="xtChart" width="400" height="220"></canvas>
     </div>
     <div class="chart-card">
         <div class="card-title">竖直位移 - 时间 (y-t)</div>
-        <canvas id="ytChart" height="220"></canvas>
+        <canvas id="ytChart" width="400" height="220"></canvas>
     </div>
 </div>
 
@@ -670,6 +673,9 @@ function drawFrame() {
 
     // Axes
     drawAxes();
+
+    // Ground and launcher
+    drawGround();
 
     // Trajectory curve (predicted)
     if (!sim.running) {
@@ -767,6 +773,61 @@ function drawAxes() {
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText('O', origin.cx - 14, origin.cy + 14);
+}
+
+// Draw ground and launcher
+function drawGround() {
+    const origin = worldToCanvas(0, 0);
+    const { s, px, aw, py } = getScale();
+    const groundY = origin.cy;
+    const groundBottom = py + getScale().ah;
+
+    // Ground fill
+    ctx.fillStyle = 'rgba(52, 211, 153, 0.04)';
+    ctx.fillRect(px, groundY, aw, groundBottom - groundY);
+
+    // Ground line (thicker)
+    ctx.strokeStyle = 'rgba(52, 211, 153, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(px, groundY);
+    ctx.lineTo(px + aw, groundY);
+    ctx.stroke();
+
+    // Launcher platform at x=0
+    const platW = 20 * s;
+    const platH = 6;
+    ctx.fillStyle = 'rgba(96, 165, 250, 0.3)';
+    ctx.fillRect(origin.cx - platW / 2, groundY - platH, platW, platH);
+    ctx.strokeStyle = 'rgba(96, 165, 250, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(origin.cx - platW / 2, groundY - platH, platW, platH);
+
+    // "H" height label
+    const hPx = params.h0 * s;
+    if (hPx > 30) {
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(origin.cx - platW / 2 - 10, groundY);
+        ctx.lineTo(origin.cx - platW / 2 - 10, groundY - hPx);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Arrow heads
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.6)';
+        ctx.beginPath();
+        ctx.moveTo(origin.cx - platW / 2 - 14, groundY - hPx / 2 - 4);
+        ctx.lineTo(origin.cx - platW / 2 - 10, groundY - hPx / 2);
+        ctx.lineTo(origin.cx - platW / 2 - 6, groundY - hPx / 2 - 4);
+        ctx.fill();
+
+        ctx.font = '11px "PingFang SC", sans-serif';
+        ctx.fillStyle = '#fbbf24';
+        ctx.textAlign = 'left';
+        ctx.fillText('H=' + params.h0.toFixed(1) + 'm', origin.cx - platW / 2 - 10, groundY - hPx / 2 - 6);
+    }
 }
 
 function drawPredictedTrajectory() {
@@ -1337,8 +1398,21 @@ function handleResize() {
 
 window.addEventListener('resize', handleResize);
 
-// Initial draw with a slight delay for layout
-setTimeout(init, 100);
+// Init after full page load
+function boot() {
+    // Ensure canvas wrapper has proper sizing
+    const wrapper = document.getElementById('canvasWrapper');
+    if (wrapper && wrapper.clientWidth > 0) {
+        init();
+    } else {
+        setTimeout(boot, 50);
+    }
+}
+if (document.readyState === 'complete') {
+    boot();
+} else {
+    window.addEventListener('load', boot);
+}
 </script>
 
 </body>
