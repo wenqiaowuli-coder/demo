@@ -82,6 +82,10 @@
             <label>动摩擦因数 μ <b id="muVal">0.50</b></label>
             <input type="range" id="mu" min="0.05" max="1.0" value="0.5" step="0.05">
           </div>
+          <div class="ctl">
+            <label>初始速度 v₀ <b id="v0Val">0.0 m/s</b></label>
+            <input type="range" id="v0" min="-5.0" max="5.0" value="0" step="0.1">
+          </div>
           <div class="btn-row">
             <button id="dirUp" class="on">传送带向上</button>
             <button id="dirDown">传送带向下</button>
@@ -94,6 +98,7 @@
 
         <div class="data">
           <div class="cell"><div class="k">时间 t</div><div class="v" id="dTime">0.00 s</div></div>
+          <div class="cell"><div class="k">初始速度 v₀</div><div class="v" id="dV0">0.00 m/s</div></div>
           <div class="cell"><div class="k">物体速度 v</div><div class="v" id="dVel">0.00 m/s</div></div>
           <div class="cell"><div class="k">加速度 a</div><div class="v" id="dAcc">0.00 m/s²</div></div>
           <div class="cell"><div class="k">位移 s</div><div class="v" id="dDis">0.00 m</div></div>
@@ -131,17 +136,17 @@
   var gctx  = document.getElementById('graph').getContext('2d');
   var ctx   = scene.getContext('2d');
   var elTheta=document.getElementById('theta'), elV=document.getElementById('vbelt'), elMu=document.getElementById('mu');
-  var elThVal=document.getElementById('thVal'), elVVal=document.getElementById('vVal'), elMuVal=document.getElementById('muVal');
-  var elUp=document.getElementById('dirUp'), elDown=document.getElementById('dirDown');
+  var elV0=document.getElementById('v0'), elUp=document.getElementById('dirUp'), elDown=document.getElementById('dirDown');
+  var elThVal=document.getElementById('thVal'), elVVal=document.getElementById('vVal'), elMuVal=document.getElementById('muVal'), elV0Val=document.getElementById('v0Val');
   var elStart=document.getElementById('start'), elReset=document.getElementById('reset');
   var dTime=document.getElementById('dTime'), dVel=document.getElementById('dVel'),
       dAcc=document.getElementById('dAcc'), dDis=document.getElementById('dDis'),
-      dBelt=document.getElementById('dBelt'), dTan=document.getElementById('dTan'),
+      dBelt=document.getElementById('dBelt'), dTan=document.getElementById('dTan'), dV0=document.getElementById('dV0'),
       stateBox=document.getElementById('stateBox');
 
   // ---------- 状态（统一约定：沿斜面向上为正方向） ----------
   // s ∈ [0, L]，底端=0，顶端=L；v、a 均向上为正
-  var theta=30, vb=2, mu=0.5, dir=1;   // dir=+1 向上运送, -1 向下运送
+  var theta=30, vb=2, mu=0.5, dir=1, v0=0;   // dir=+1 向上运送, -1 向下运送
   var s=0, v=0, t=0, acc=0;
   var running=false, left=false;
   var history=[];       // v-t 采样 {t, v}
@@ -152,9 +157,9 @@
   function beltUpSpeed(){ return dir*vb; }   // 带速（向上为正）
 
   function reset(){
-    t=0; v=0; acc=0; running=false; left=false; history=[]; phase='';
+    t=0; v=v0; acc=0; running=false; left=false; history=[]; phase='';
     s = (dir>0) ? 0 : L;      // 向上：底端轻放；向下：顶端轻放
-    setState('已重置，点击“启动”开始','');
+    setState('已重置，点击”启动”开始','');
   }
 
   function setState(txt,color){
@@ -370,6 +375,7 @@
     drawScene();
     drawGraph();
     dTime.textContent=t.toFixed(2)+' s';
+    dV0.textContent=v0.toFixed(2)+' m/s';
     dVel.textContent=v.toFixed(2)+' m/s';
     dAcc.textContent=(left?0:acc).toFixed(2)+' m/s²';
     dDis.textContent=s.toFixed(2)+' m';
@@ -381,15 +387,17 @@
 
   // ---------- 事件 ----------
   function refreshParams(){
-    theta=+elTheta.value; vb=+elV.value; mu=+elMu.value;
+    theta=+elTheta.value; vb=+elV.value; mu=+elMu.value; v0=+elV0.value;
     elThVal.textContent=theta+'°';
     elVVal.textContent=vb.toFixed(1)+' m/s';
     elMuVal.textContent=mu.toFixed(2);
+    elV0Val.textContent=v0.toFixed(1)+' m/s';
     dTan.textContent=Math.tan(rad(theta)).toFixed(2);
   }
   elTheta.addEventListener('input',function(){ refreshParams(); if(!running) reset(); });
   elV.addEventListener('input',function(){ refreshParams(); if(!running) reset(); });
   elMu.addEventListener('input',function(){ refreshParams(); if(!running) reset(); });
+  elV0.addEventListener('input',function(){ refreshParams(); if(!running) reset(); });
   elUp.addEventListener('click',function(){ dir=1; elUp.classList.add('on'); elDown.classList.remove('on'); reset(); });
   elDown.addEventListener('click',function(){ dir=-1; elDown.classList.add('on'); elUp.classList.remove('on'); reset(); });
   elStart.addEventListener('click',function(){
