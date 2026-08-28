@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>水平传送带演示｜高中物理</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background-color: #121212;
+  color: #fff;
+  font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 10px 24px;
+  min-height: 100vh;
+}
+h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #e8eef5;
+}
+.subtitle {
+  font-size: 12px;
+  color: #8899aa;
+  margin-bottom: 12px;
+}
+.main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 880px;
+  width: 100%;
+  gap: 12px;
+}
+.canvas-wrap {
+  position: relative;
+  width: 100%;
+  background: #0d141b;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+canvas { display: block; width: 100%; }
+.panel-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  justify-content: center;
+}
+.card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 10px 14px;
+  flex: 1;
+  min-width: 200px;
+}
+.card-title {
+  font-size: 11px;
+  color: #8899aa;
+  margin-bottom: 8px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #aab;
+  margin-bottom: 6px;
+}
+.row label { flex: 0 0 92px; color: #c0c8d4; }
+.row input[type=range] { flex: 1; accent-color: #3388dd; }
+.row .val {
+  flex: 0 0 54px;
+  text-align: right;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.btn-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+button {
+  background: #3388dd;
+  border: none;
+  color: #fff;
+  padding: 7px 13px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+button:hover { background: #4499ee; }
+button.alt { background: #445566; }
+button.alt:hover { background: #556677; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.data-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  justify-content: center;
+}
+.data-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: #aab;
+  text-align: center;
+  flex: 1;
+  min-width: 120px;
+}
+.data-card .label { color: #8899aa; font-size: 11px; }
+.data-card .num {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.data-card .num.accent { color: #ffaa44; }
+.data-card .num.green { color: #44dd88; }
+.phase {
+  background: #1d2a3a;
+  border: 1px solid #2d4a6a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #c8e0ff;
+  text-align: center;
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.5;
+}
+.phase strong { color: #ffaa44; }
+.legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: #8899aa;
+  margin-top: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.legend span::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+  border-radius: 2px;
+}
+.lg-v::before { background: #ffaa44; }
+.lg-vbelt::before { background: #44ddff; }
+.lg-f::before { background: #ff5577; }
+.lg-rel::before { background: #aaff66; }
+footer {
+  margin-top: 18px;
+  font-size: 11px;
+  color: #556677;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<h1>水平传送带演示</h1>
+<div class="subtitle">物块与传送带 — 摩擦力分析 / v-t 图 / 相对速度方向</div>
+
+<div class="main">
+  <div class="canvas-wrap">
+    <canvas id="cv" width="880" height="300"></canvas>
+  </div>
+
+  <div class="phase" id="phase">点击「开始」观察物块运动</div>
+
+  <div class="panel-row">
+    <div class="card">
+      <div class="card-title">物块参数</div>
+      <div class="row">
+        <label>初速度 v₀</label>
+        <input id="v0" type="range" min="-6" max="6" step="0.1" value="0">
+        <span class="val" id="v0v">0.0 m/s</span>
+      </div>
+      <div class="row">
+        <label>动摩擦 μ</label>
+        <input id="mu" type="range" min="0.05" max="0.8" step="0.01" value="0.30">
+        <span class="val" id="muv">0.30</span>
+      </div>
+      <div class="row">
+        <label>重力 g</label>
+        <input id="g" type="range" min="5" max="15" step="0.1" value="9.8">
+        <span class="val" id="gv">9.8 m/s²</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">传送带</div>
+      <div class="row">
+        <label>带速 v带</label>
+        <input id="vb" type="range" min="-6" max="6" step="0.1" value="3">
+        <span class="val" id="vbv">+3.0 m/s</span>
+      </div>
+      <div class="row">
+        <label>方向</label>
+        <span class="val" id="vbdir" style="flex:1; text-align:left;">→ 向右</span>
+      </div>
+      <div class="btn-group">
+        <button id="bStart" class="alt">▶ 开始</button>
+        <button id="bReset">⟲ 重置</button>
+        <button id="bScenario1" class="alt">轻放情景</button>
+        <button id="bScenario2" class="alt">刹停情景</button>
+        <button id="bScenario3" class="alt">反向放上</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="data-row">
+    <div class="data-card">
+      <div class="label">物块速度 v</div>
+      <div class="num" id="vNum">0.00 m/s</div>
+    </div>
+    <div class="data-card">
+      <div class="label">相对带速 v−v带</div>
+      <div class="num accent" id="vrel">0.00 m/s</div>
+    </div>
+    <div class="data-card">
+      <div class="label">摩擦力 f</div>
+      <div class="num green" id="fNum">0.00 N</div>
+    </div>
+    <div class="data-card">
+      <div class="label">加速度 a</div>
+      <div class="num" id="aNum">0.00 m/s²</div>
+    </div>
+    <div class="data-card">
+      <div class="label">已用时间 t</div>
+      <div class="num" id="tNum">0.00 s</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="lg-v">物块速度 v</span>
+    <span class="lg-vbelt">传送带速度 v带</span>
+    <span class="lg-f">摩擦力 f（动摩擦）</span>
+    <span class="lg-rel">相对运动方向</span>
+  </div>
+</div>
+
+<footer>水平传送带模型 · 物块-传送带动力学演示 · 高中物理</footer>
+
+<script>
+(() => {
+  // ===== Canvas setup =====
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  // 高分屏适配
+  function fitCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = cv.getBoundingClientRect();
+    cv.width  = Math.floor(rect.width  * dpr);
+    cv.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', () => { fitCanvas(); drawAll(); });
+  fitCanvas();
+
+  // ===== DOM =====
+  const $ = id => document.getElementById(id);
+  const v0El  = $('v0'),  v0v  = $('v0v');
+  const muEl  = $('mu'),  muv  = $('muv');
+  const gEl   = $('g'),   gv   = $('gv');
+  const vbEl  = $('vb'),  vbv  = $('vbv'), vbdir = $('vbdir');
+  const vNum  = $('vNum'), vrel = $('vrel'), fNum = $('fNum'), aNum = $('aNum'), tNum = $('tNum');
+  const phase = $('phase');
+  const bStart = $('bStart'), bReset = $('bReset');
+  const s1 = $('bScenario1'), s2 = $('bScenario2'), s3 = $('bScenario3');
+
+  // ===== Physics state =====
+  let state = {
+    v0: 0, vBelt: 3, mu: 0.30, g: 9.8,
+    x: 0,            // 物块在带上的位置（米），相对画布中心
+    v: 0,            // 物块速度 m/s
+    t: 0,            // 已用时间 s
+    running: false,
+    trace: [],       // [t, v] 采样
+    finished: false
+  };
+  const PIX_PER_M = 36;   // 1 m = 36 px
+  const BELT_LEN_M = 24;  // 传送带 24 m
+  const MASS = 1;         // 物块质量（用于显示摩擦力 N）: f = μ m g
+
+  // 物理：水平传送带只有动摩擦（无其他水平外力）
+  // 相对速度 vRel = v - vBelt
+  // 若 |vRel| > 0  →  动摩擦方向与 vRel 反向 → 加速度方向与 vRel 反向
+  // 若 |vRel| = 0  →  共速，无摩擦，匀速
+  // 关键：单步 dt 内可能跨越共速点 → 必须做"分段积分"
+  function step(dt) {
+    const vR = state.v - state.vBelt;
+    if (Math.abs(vR) <= 1e-6) {
+      // 已共速，保持
+      state.v = state.vBelt;
+      state.x += state.v * dt;
+      state.t += dt;
+      return;
+    }
+    const aMag = state.mu * state.g;          // 加速度大小
+    const aDir = -Math.sign(vR);              // 加速度方向 = -sign(vR)
+    // 达到共速所需时间
+    const tToSync = Math.abs(vR) / aMag;
+    if (tToSync <= dt) {
+      // 这一步内会共速：先走到共速点，再匀速走完剩余 dt
+      const dt1 = tToSync;
+      const dt2 = dt - dt1;
+      state.v += aDir * aMag * dt1;           // 恰好到 vBelt
+      state.x += state.v * dt1;               // 走完共速前位移
+      // 共速段：匀速 = vBelt
+      state.x += state.vBelt * dt2;
+      state.t += dt;
+      // 数值残差修正
+      if (Math.abs(state.v - state.vBelt) < 1e-4) state.v = state.vBelt;
+    } else {
+      // 本步未达共速
+      state.v += aDir * aMag * dt;
+      state.x += state.v * dt;
+      state.t += dt;
+    }
+  }
+
+  // ===== Drawing =====
+  function clear() {
+    const w = cv.clientWidth, h = cv.clientHeight;
+    ctx.fillStyle = '#0d141b';
+    ctx.fillRect(0, 0, w, h);
+
+    // 网格
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 24) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+    for (let y = 0; y < h; y += 24) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+  }
+
+  function drawBelt() {
+    const w = cv.clientWidth, h = cv.clientHeight;
+    const beltH = 110;
+    const beltY = h - beltH - 30;
+    const beltX0 = 20;
+    const beltW = w - 40;
+    // 上下两条带边
+    ctx.fillStyle = '#2a3340';
+    ctx.fillRect(beltX0, beltY, beltW, beltH);
+    ctx.strokeStyle = '#556677';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(beltX0, beltY, beltW, beltH);
+
+    // 带面纹理（按带速平移，营造运动感）
+    const lineOffset = (state.t * state.vBelt * PIX_PER_M) % 40;
+    ctx.strokeStyle = 'rgba(120,160,200,0.35)';
+    ctx.lineWidth = 1;
+    for (let x = -40 + lineOffset; x < beltW; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(beltX0 + x, beltY + 6);
+      ctx.lineTo(beltX0 + x, beltY + beltH - 6);
+      ctx.stroke();
+    }
+
+    // 滚轮
+    ctx.fillStyle = '#1a2228';
+    ctx.strokeStyle = '#778899';
+    ctx.lineWidth = 2;
+    [beltX0, beltX0 + beltW].forEach(cx => {
+      ctx.beginPath();
+      ctx.arc(cx, beltY + beltH/2, 14, 0, Math.PI*2);
+      ctx.fill(); ctx.stroke();
+    });
+
+    // 带速箭头（带中央）
+    ctx.fillStyle = '#44ddff';
+    ctx.font = '12px system-ui';
+    ctx.textAlign = 'left';
+    const arrowY = beltY + 18;
+    const arrowX = beltX0 + 16;
+    if (Math.abs(state.vBelt) > 0.01) {
+      const len = Math.sign(state.vBelt) * 28;
+      ctx.beginPath();
+      ctx.moveTo(arrowX, arrowY);
+      ctx.lineTo(arrowX + len, arrowY);
+      ctx.strokeStyle = '#44ddff'; ctx.lineWidth = 2; ctx.stroke();
+      // 箭头三角
+      ctx.beginPath();
+      ctx.moveTo(arrowX + len, arrowY);
+      ctx.lineTo(arrowX + len - Math.sign(len)*6, arrowY - 4);
+      ctx.lineTo(arrowX + len - Math.sign(len)*6, arrowY + 4);
+      ctx.closePath(); ctx.fill();
+      ctx.fillText(`v带 = ${state.vBelt.toFixed(2)} m/s`, arrowX + len + (len>0?4:-90), arrowY + 4);
+    } else {
+      ctx.fillText('v带 = 0', arrowX, arrowY);
+    }
+
+    return { beltY, beltH, beltX0, beltW };
+  }
+
+  function drawBlock(belt) {
+    const blockW = 50, blockH = 50;
+    const cx = belt.beltX0 + (BELT_LEN_M/2 + state.x) * PIX_PER_M;
+    // 边界：物块中心超出带端则夹紧，避免画到外面
+    const minX = belt.beltX0 + blockW/2 + 2;
+    const maxX = belt.beltX0 + belt.beltW - blockW/2 - 2;
+    const drawX = Math.max(minX, Math.min(maxX, cx));
+    const drawY = belt.beltY - blockH - 2;
+
+    // 物块阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(drawX - blockW/2 + 3, belt.beltY - 2, blockW - 6, 4);
+
+    // 物块
+    const grad = ctx.createLinearGradient(0, drawY, 0, drawY + blockH);
+    grad.addColorStop(0, '#d8a050');
+    grad.addColorStop(1, '#a07030');
+    ctx.fillStyle = grad;
+    ctx.fillRect(drawX - blockW/2, drawY, blockW, blockH);
+    ctx.strokeStyle = '#ffaa44';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(drawX - blockW/2, drawY, blockW, blockH);
+
+    // 物块速度箭头
+    if (Math.abs(state.v) > 0.01) {
+      const len = Math.sign(state.v) * (10 + Math.abs(state.v) * 8);
+      const ay = drawY + blockH/2;
+      const ax = drawX + Math.sign(state.v) * (blockW/2 + 4);
+      ctx.beginPath();
+      ctx.moveTo(drawX + Math.sign(state.v) * (blockW/2 + 2), ay);
+      ctx.lineTo(ax + len, ay);
+      ctx.strokeStyle = '#ffaa44'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(ax + len, ay);
+      ctx.lineTo(ax + len - Math.sign(state.v) * 6, ay - 4);
+      ctx.lineTo(ax + len - Math.sign(state.v) * 6, ay + 4);
+      ctx.closePath(); ctx.fillStyle = '#ffaa44'; ctx.fill();
+    }
+
+    // 摩擦力箭头（贴物块底面）
+    const vR = state.v - state.vBelt;
+    let fDir = 0;
+    if (Math.abs(vR) > 1e-3) fDir = -Math.sign(vR);
+    if (fDir !== 0) {
+      const fMag = state.mu * MASS * state.g;
+      const len = fDir * (12 + fMag * 4);
+      const fy = drawY + blockH + 8;
+      const fx0 = drawX;
+      ctx.beginPath();
+      ctx.moveTo(fx0, fy);
+      ctx.lineTo(fx0 + len, fy);
+      ctx.strokeStyle = '#ff5577'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(fx0 + len, fy);
+      ctx.lineTo(fx0 + len - fDir * 6, fy - 4);
+      ctx.lineTo(fx0 + len - fDir * 6, fy + 4);
+      ctx.closePath(); ctx.fillStyle = '#ff5577'; ctx.fill();
+      ctx.fillStyle = '#ff5577';
+      ctx.font = '11px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(`f=${fMag.toFixed(2)}N`, fx0 + len/2, fy + 16);
+    }
+
+    // 相对运动方向（物块上方面板）
+    if (Math.abs(vR) > 1e-3) {
+      const rDir = Math.sign(vR);
+      const ry = drawY - 8;
+      const rx0 = drawX;
+      const rlen = rDir * 26;
+      ctx.beginPath();
+      ctx.moveTo(rx0 - rlen/2, ry);
+      ctx.lineTo(rx0 + rlen/2, ry);
+      ctx.strokeStyle = '#aaff66'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(rx0 + rlen/2, ry);
+      ctx.lineTo(rx0 + rlen/2 - rDir*5, ry - 3);
+      ctx.lineTo(rx0 + rlen/2 - rDir*5, ry + 3);
+      ctx.closePath(); ctx.fillStyle = '#aaff66'; ctx.fill();
+      ctx.fillStyle = '#aaff66';
+      ctx.font = '10px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(`v相对 = ${vR.toFixed(2)}`, rx0, ry - 4);
+    } else {
+      ctx.fillStyle = '#aaff66';
+      ctx.font = '10px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('v相对 = 0  (共速)', drawX, drawY - 6);
+    }
+  }
+
+  // ===== v-t 小图（顶部）=====
+  function drawVT() {
+    const w = cv.clientWidth;
+    const gH = 80;             // 图表区高度
+    const gW = w - 40;
+    const gX = 20, gY = 10;
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    ctx.fillRect(gX, gY, gW, gH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(gX, gY, gW, gH);
+
+    // 轴
+    const midY = gY + gH/2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath(); ctx.moveTo(gX, midY); ctx.lineTo(gX + gW, midY); ctx.stroke();
+
+    // 标签
+    ctx.fillStyle = '#8899aa';
+    ctx.font = '10px system-ui';
+    ctx.textAlign = 'left';
+    ctx.fillText('v-t 图  (橙:物块 v  /  青:带速 v带)', gX + 4, gY + 11);
+
+    if (state.trace.length < 2) return;
+
+    // 自适应时间窗（最近 10 s）
+    const tWin = 10;
+    const tEnd = state.t;
+    const tStart = Math.max(0, tEnd - tWin);
+    const vScale = (gH/2 - 6) / 7;   // ±7 m/s 满幅
+
+    function px(t) { return gX + (t - tStart) / tWin * gW; }
+    function py(v) { return midY - v * vScale; }
+
+    // vBelt 水平参考线
+    ctx.strokeStyle = 'rgba(68,221,255,0.6)';
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(gX, py(state.vBelt));
+    ctx.lineTo(gX + gW, py(state.vBelt));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // v 曲线
+    ctx.strokeStyle = '#ffaa44';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    state.trace.forEach(([t, v], i) => {
+      if (t < tStart) return;
+      const x = px(t), y = py(v);
+      if (i === 0 || state.trace[i-1][0] < tStart) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  function drawAll() {
+    clear();
+    drawVT();
+    const belt = drawBelt();
+    drawBlock(belt);
+  }
+
+  // ===== HUD 更新 =====
+  function updateHud() {
+    const vR = state.v - state.vBelt;
+    let f = 0, phaseTxt = '';
+    if (Math.abs(vR) > 1e-3) {
+      f = state.mu * MASS * state.g;
+      const dir = vR > 0 ? '向右' : '向左';
+      const fdir = vR > 0 ? '向左' : '向右';
+      if (Math.abs(state.v) < 0.01 && Math.abs(state.vBelt) > 0.01) {
+        // 物块几乎静止
+        phaseTxt = `物块 <strong>相对传送带向${dir}滑</strong>，受动摩擦 <strong>${fdir}</strong>，开始加速`;
+      } else {
+        phaseTxt = `物块 <strong>相对传送带向${dir}滑</strong>，动摩擦 <strong>${fdir}</strong>，a = ${(state.mu*state.g).toFixed(2)} m/s²`;
+      }
+    } else {
+      phaseTxt = `<strong>共速</strong>：物块与传送带同速，<strong>无摩擦力</strong>，做匀速直线运动`;
+    }
+    vNum.textContent  = state.v.toFixed(2) + ' m/s';
+    vrel.textContent  = vR.toFixed(2) + ' m/s';
+    fNum.textContent  = f.toFixed(2) + ' N';
+    const a = (Math.abs(vR) > 1e-3) ? (-Math.sign(vR) * state.mu * state.g) : 0;
+    aNum.textContent  = a.toFixed(2) + ' m/s²';
+    tNum.textContent  = state.t.toFixed(2) + ' s';
+    phase.innerHTML   = phaseTxt;
+  }
+
+  // ===== Loop =====
+  let lastTs = 0;
+  function loop(ts) {
+    if (!state.running) return;
+    if (!lastTs) lastTs = ts;
+    const dt = Math.min(0.033, (ts - lastTs) / 1000);   // cap 30ms
+    lastTs = ts;
+
+    // 多次小步迭代，避免大 dt 跨过共速点
+    const sub = 4;
+    for (let i = 0; i < sub; i++) {
+      if (!state.running) break;
+      const oldV = state.v;
+      step(dt / sub);
+      // 采样
+      if (i === sub - 1) state.trace.push([state.t, state.v]);
+      // 出界或共速稳定：自然结束
+      if (Math.abs(state.x) > BELT_LEN_M/2) {
+        state.running = false;
+        state.finished = true;
+        bStart.disabled = true;
+        bStart.textContent = '已出界';
+        break;
+      }
+    }
+
+    drawAll();
+    updateHud();
+    if (state.running) requestAnimationFrame(loop);
+  }
+
+  // ===== 控件 =====
+  function readControls() {
+    state.v0    = parseFloat(v0El.value);
+    state.vBelt = parseFloat(vbEl.value);
+    state.mu    = parseFloat(muEl.value);
+    state.g     = parseFloat(gEl.value);
+    v0v.textContent  = (state.v0 >= 0 ? '+' : '') + state.v0.toFixed(1) + ' m/s';
+    muv.textContent  = state.mu.toFixed(2);
+    gv.textContent   = state.g.toFixed(1) + ' m/s²';
+    vbv.textContent  = (state.vBelt >= 0 ? '+' : '') + state.vBelt.toFixed(1) + ' m/s';
+    vbdir.textContent = state.vBelt > 0.01 ? '→ 向右' : (state.vBelt < -0.01 ? '← 向左' : '· 静止');
+  }
+
+  function reset() {
+    readControls();
+    state.x = 0;
+    state.v = state.v0;
+    state.t = 0;
+    state.trace = [[0, state.v]];
+    state.running = false;
+    state.finished = false;
+    lastTs = 0;
+    bStart.disabled = false;
+    bStart.textContent = '▶ 开始';
+    drawAll();
+    updateHud();
+  }
+
+  function start() {
+    if (state.running || state.finished) return;
+    state.running = true;
+    lastTs = 0;
+    bStart.textContent = '运行中…';
+    requestAnimationFrame(loop);
+  }
+
+  // 绑定
+  [v0El, vbEl, muEl, gEl].forEach(el => {
+    el.addEventListener('input', () => { if (!state.running && !state.finished) { readControls(); state.v = state.v0; drawAll(); updateHud(); } });
+    el.addEventListener('change', () => { if (!state.running && !state.finished) { readControls(); state.v = state.v0; drawAll(); updateHud(); } });
+  });
+  bStart.addEventListener('click', start);
+  bReset.addEventListener('click', reset);
+
+  // 三个情景
+  s1.addEventListener('click', () => {
+    v0El.value = 0; vbEl.value = 3; muEl.value = 0.30; gEl.value = 9.8;
+    readControls(); reset();
+  });
+  s2.addEventListener('click', () => {
+    // 物块以 +3 起，传送带突然停下 → 相对向前滑，摩擦向左，减速
+    v0El.value = 3; vbEl.value = 0; muEl.value = 0.30; gEl.value = 9.8;
+    readControls(); reset();
+  });
+  s3.addEventListener('click', () => {
+    // 物块向左 -4，传送带向右 +3 → 物块相对带向左滑，摩擦向右，减速后反向加速到共速
+    v0El.value = -4; vbEl.value = 3; muEl.value = 0.30; gEl.value = 9.8;
+    readControls(); reset();
+  });
+
+  // 初始
+  readControls();
+  reset();
+})();
+</script>
+</body>
+</html>
