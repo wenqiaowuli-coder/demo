@@ -260,7 +260,7 @@
                     </div>
                     <div class="info-item energy">
                         <div class="label">总动能</div>
-                        <div class="value" id="eTotal">31.5</div>
+                        <div class="value" id="eTotal">28.5</div>
                     </div>
                 </div>
             </div>
@@ -346,6 +346,8 @@ function createBalls() {
         color: '#4ecdc4', trail: []
     };
     collided = false;
+    document.getElementById('pAfter').textContent = '—';
+    document.getElementById('eAfter').textContent = '—';
     updateDisplay(p);
 }
 
@@ -378,6 +380,10 @@ function updateAfterCollision() {
         const eT2 = 0.5 * ballA.m * vA2 * vA2 + 0.5 * ballB.m * vB2 * vB2;
         document.getElementById('pAfter').textContent = pT2.toFixed(1);
         document.getElementById('eAfter').textContent = eT2.toFixed(1);
+        document.getElementById('pA').textContent = pA2.toFixed(1);
+        document.getElementById('pB').textContent = pB2.toFixed(1);
+        document.getElementById('pTotal').textContent = pT2.toFixed(1);
+        document.getElementById('eTotal').textContent = eT2.toFixed(1);
     }
 }
 
