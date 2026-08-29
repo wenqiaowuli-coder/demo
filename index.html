@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhySim Lab — 物理模拟演示</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --md-sys-color-primary: #6750A4;
+            --md-sys-color-on-primary: #FFFFFF;
+            --md-sys-color-primary-container: #EADDFF;
+            --md-sys-color-on-primary-container: #21005E;
+            --md-sys-color-secondary: #625B71;
+            --md-sys-color-on-secondary-container: #1E192B;
+            --md-sys-color-tertiary: #7D5260;
+            --md-sys-color-on-tertiary-container: #370B1E;
+            --md-sys-color-tertiary-container: #FFD8E4;
+            --md-sys-color-background: #FFFBFE;
+            --md-sys-color-on-background: #1C1B1F;
+            --md-sys-color-surface: #FFFBFE;
+            --md-sys-color-on-surface: #1C1B1F;
+            --md-sys-color-surface-variant: #E7E0EC;
+            --md-sys-color-on-surface-variant: #49454F;
+            --md-sys-color-outline: #79747E;
+            --md-sys-elevation-1: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
+            --md-sys-elevation-3: 0 4px 8px 3px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.3);
+        }
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 0;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 30px 20px; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 500;
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+        .header p { color: #888; font-size: 0.95rem; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 14px;
+            padding: 22px;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+        .card:hover {
+            box-shadow: var(--md-sys-elevation-3);
+            transform: translateY(-4px);
+            border-color: rgba(255,255,255,0.25);
+        }
+        .card .icon-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+        .card .icon-circle {
+            width: 44px; height: 44px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; flex-shrink: 0;
+        }
+        .card h3 { font-size: 1.15rem; font-weight: 500; color: #fff; margin: 0; }
+        .card .badge {
+            display: inline-block; font-size: 0.72rem; font-weight: 500;
+            padding: 2px 10px; border-radius: 12px; margin-top: 6px;
+            background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container);
+        }
+        .card p {
+            color: #bbb; font-size: 0.88rem; line-height: 1.55; margin: 10px 0 16px;
+            flex: 1;
+        }
+        .card a.btn {
+            display: inline-block; padding: 9px 0; border-radius: 8px; text-align: center;
+            text-decoration: none; font-weight: 600; font-size: 0.9rem;
+            background: linear-gradient(135deg, #00b09b, #96c93d); color: #fff;
+            transition: all 0.2s;
+        }
+        .card a.btn:hover { transform: translateY(-1px); opacity: 0.92; color: #fff; }
+        .footer { text-align: center; margin-top: 40px; color: #666; font-size: 0.82rem; }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+            .header h1 { font-size: 1.6rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>PhySim Lab — 物理模拟演示</h1>
+            <p>高中物理交互式动画实验 · 调节参数，直观理解物理规律</p>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="icon-row">
+                    <div class="icon-circle" style="background:rgba(255,107,107,0.2);">&#x1F3AF;</div>
+                    <div>
+                        <h3>动量守恒定律 — 两球碰撞演示</h3>
+                        <span class="badge">力学 · 中级</span>
+                    </div>
+                </div>
+                <p>调节两球质量与初速度，观察完全弹性碰撞与完全非弹性碰撞过程中的动量守恒与能量变化。实时显示动量条、动能对比和碰撞前后数据。</p>
+                <a href="momentum-collision.html" class="btn">打开演示</a>
+            </div>
+
+            <div class="card">
+                <div class="icon-row">
+                    <div class="icon-circle" style="background:rgba(78,205,196,0.2);">&#x1F4A8;</div>
+                    <div>
+                        <h3>平抛运动演示</h3>
+                        <span class="badge">力学 · 初级</span>
+                    </div>
+                </div>
+                <p>展示平抛运动在水平方向与竖直方向的运动分解，直观理解平抛轨迹的形成规律，可调节初速度和高度观察轨迹变化。</p>
+                <a href="projectile-motion.html" class="btn">打开演示</a>
+            </div>
+
+            <div class="card">
+                <div class="icon-row">
+                    <div class="icon-circle" style="background:rgba(255,217,61,0.2);">&#x2B06;</div>
+                    <div>
+                        <h3>竖直上抛运动演示</h3>
+                        <span class="badge">力学 · 初级</span>
+                    </div>
+                </div>
+                <p>模拟物体竖直上抛的完整过程，展示位移、速度随时间的变化规律，理解上升与下落阶段的对称性及加速度的恒定作用。</p>
+                <a href="vertical-throw-demo.html" class="btn">打开演示</a>
+            </div>
+
+            <div class="card">
+                <div class="icon-row">
+                    <div class="icon-circle" style="background:rgba(0,210,255,0.2);">&#x1F6E1;</div>
+                    <div>
+                        <h3>水平传送带演示</h3>
+                        <span class="badge">力学 · 中级</span>
+                    </div>
+                </div>
+                <p>物体在水平传送带上的运动分析，研究摩擦力对物体速度的影响，观察物体与传送带达到共速前后的动力学过程。</p>
+                <a href="horizontal-conveyor-belt.html" class="btn">打开演示</a>
+            </div>
+
+            <div class="card">
+                <div class="icon-row">
+                    <div class="icon-circle" style="background:rgba(255,160,100,0.2);">&#x1F4C9;</div>
+                    <div>
+                        <h3>倾斜传送带演示</h3>
+                        <span class="badge">力学 · 中级</span>
+                    </div>
+                </div>
+                <p>物体在倾斜传送带上的受力与运动状态分析，研究重力分量、摩擦力对物体运动的影响，观察不同摩擦因数下的运动差异。</p>
+                <a href="inclined-conveyor-belt.html" class="btn">打开演示</a>
+            </div>
+
+            <div class="card">
+                <div class="icon-row">
+                    <div class="icon-circle" style="background:rgba(160,255,140,0.2);">&#x1FAA4;</div>
+                    <div>
+                        <h3>板块运动演示（完整版）</h3>
+                        <span class="badge">力学 · 高级</span>
+                    </div>
+                </div>
+                <p>展示物块 A 在板块 B 上的相对滑动、共速、滑出及摩擦生热等完整过程。可调节 B 的初速度和动摩擦因数，实时显示 v-t 图、相对位移、摩擦生热等数据，支持物块滑出后继续运动。</p>
+                <a href="block-plate.html" class="btn">打开演示</a>
+            </div>
+
+            <div class="card">
+                <div class="icon-row">
+                    <div class="icon-circle" style="background:rgba(220,140,255,0.2);">&#x1FAA4;</div>
+                    <div>
+                        <h3>板块运动演示（基础版）</h3>
+                        <span class="badge">力学 · 中级</span>
+                    </div>
+                </div>
+                <p>展示物块在板块上滑动直至共速的基本过程，包含相对滑动、共速条件和 v-t 图。简化了滑出后的后续运动，适合板块模型入门教学。</p>
+                <a href="block-plate-motion.html" class="btn">打开演示</a>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>PhySim Lab — 物理模拟实验室 · 所有演示均在浏览器本地运行，无需安装</p>
+        </div>
+    </div>
+</body>
+</html>
