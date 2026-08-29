@@ -548,11 +548,7 @@ function physics(dt) {
     ballA.x += ballA.vx * dt;
     ballB.x += ballB.vx * dt;
 
-    // 墙壁反弹
-    if (ballA.x - ballA.r < 0) { ballA.x = ballA.r; ballA.vx = Math.abs(ballA.vx); }
-    if (ballA.x + ballA.r > W) { ballA.x = W - ballA.r; ballA.vx = -Math.abs(ballA.vx); }
-    if (ballB.x - ballB.r < 0) { ballB.x = ballB.r; ballB.vx = Math.abs(ballB.vx); }
-    if (ballB.x + ballB.r > W) { ballB.x = W - ballB.r; ballB.vx = -Math.abs(ballB.vx); }
+    // 左右边界为单向出口，不反弹
 
     // 碰撞检测
     if (!collided) {
