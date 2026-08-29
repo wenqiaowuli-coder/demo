@@ -200,7 +200,7 @@
     <p class="subtitle">调节质量与速度，观察完全弹性碰撞与完全非弹性碰撞的动量守恒过程</p>
 
     <div class="formula">
-        p₁v₁ + p₂v₂ = p₁v₁' + p₂v₂' &nbsp;|&nbsp; 动量守恒
+        m₁v₁ + m₂v₂ = m₁v₁' + m₂v₂' &nbsp;|&nbsp; 动量守恒
     </div>
 
     <div class="main-area" style="margin-top:16px;">
@@ -311,7 +311,7 @@ const els = {
     vB_v: document.getElementById('vB_v'),
 };
 
-let ballA, ballB, running = false, animId = null, collided = false;
+let ballA, ballB, running = false, animId = null, collided = false, particles = [];
 
 function getParams() {
     const mA = parseFloat(els.mA.value);
@@ -350,7 +350,6 @@ function createBalls() {
 }
 
 function updateDisplay(p) {
-    if (!p) p = getParams();
     els.mA_v.textContent = p.mA.toFixed(1) + ' kg';
     els.mB_v.textContent = p.mB.toFixed(1) + ' kg';
     els.vA_v.textContent = p.vA.toFixed(1) + ' m/s';
@@ -367,7 +366,9 @@ function updateDisplay(p) {
     document.getElementById('eTotal').textContent = eT.toFixed(1);
     document.getElementById('pBefore').textContent = pT.toFixed(1);
     document.getElementById('eBefore').textContent = eT.toFixed(1);
+}
 
+function updateAfterCollision() {
     if (collided && ballA && ballB) {
         const vA2 = ballA.vx / 60;
         const vB2 = ballB.vx / 60;
@@ -466,6 +467,21 @@ function shadeColor(color, percent) {
     return '#' + (R<16?'0':'') + R.toString(16) + (G<16?'0':'') + G.toString(16) + (B<16?'0':'') + B.toString(16);
 }
 
+function spawnCollisionParticles(x, y) {
+    for (let i = 0; i < 16; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 30 + Math.random() * 80;
+        particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 60,
+            life: 1.0,
+            r: 1.5 + Math.random() * 2.5,
+            color: ['#ffd93d', '#ff6b6b', '#4ecdc4', '#fff'][Math.floor(Math.random() * 4)]
+        });
+    }
+}
+
 function drawMomentumBar() {
     const mA = ballA.m, mB = ballB.m;
     const vA = ballA.vx / 60, vB = ballB.vx / 60;
@@ -479,12 +495,21 @@ function drawMomentumBar() {
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'left';
 
+    // 零刻度线
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(bx, by - 2);
+    ctx.lineTo(bx, by + barH * 3 + 46 + 2);
+    ctx.stroke();
+
     // 球A动量
     ctx.fillStyle = '#ff6b6b';
     ctx.fillText('A:', bx - 22, by + 11);
     const wA = (pA / maxP) * barW;
+    const xA = wA >= 0 ? bx : bx + wA;
     ctx.fillStyle = 'rgba(255,107,107,0.6)';
-    ctx.fillRect(bx, by, Math.abs(wA), barH);
+    ctx.fillRect(xA, by, Math.abs(wA), barH);
     ctx.fillStyle = '#ff6b6b';
     ctx.fillText(pA.toFixed(1), bx + barW + 6, by + 12);
 
@@ -492,8 +517,9 @@ function drawMomentumBar() {
     ctx.fillStyle = '#4ecdc4';
     ctx.fillText('B:', bx - 22, by + 34);
     const wB = (pB / maxP) * barW;
+    const xB = wB >= 0 ? bx : bx + wB;
     ctx.fillStyle = 'rgba(78,205,196,0.6)';
-    ctx.fillRect(bx, by + 23, Math.abs(wB), barH);
+    ctx.fillRect(xB, by + 23, Math.abs(wB), barH);
     ctx.fillStyle = '#4ecdc4';
     ctx.fillText(pB.toFixed(1), bx + barW + 6, by + 35);
 
@@ -501,8 +527,9 @@ function drawMomentumBar() {
     ctx.fillStyle = '#ffd93d';
     ctx.fillText('Σp:', bx - 30, by + 56);
     const wT = ((pA + pB) / maxP) * barW;
+    const xT = wT >= 0 ? bx : bx + wT;
     ctx.fillStyle = 'rgba(255,217,61,0.6)';
-    ctx.fillRect(bx, by + 46, Math.abs(wT), barH);
+    ctx.fillRect(xT, by + 46, Math.abs(wT), barH);
     ctx.fillStyle = '#ffd93d';
     ctx.fillText((pA + pB).toFixed(1), bx + barW + 6, by + 57);
 }
@@ -533,6 +560,10 @@ function physics(dt) {
         const dist = Math.abs(dx);
         if (dist < ballA.r + ballB.r) {
             collided = true;
+            const overlap = (ballA.r + ballB.r) - dist;
+            if (dx > 0) { ballA.x -= overlap / 2; ballB.x += overlap / 2; }
+            else { ballA.x += overlap / 2; ballB.x -= overlap / 2; }
+            spawnCollisionParticles((ballA.x + ballB.x) / 2, ballA.y);
             const type = getCollisionType();
             if (type === 'elastic') {
                 const v1 = ballA.vx, v2 = ballB.vx;
@@ -546,7 +577,7 @@ function physics(dt) {
                 ballA.vx = vf;
                 ballB.vx = vf;
             }
-            updateDisplay();
+            updateAfterCollision();
         }
     }
 
@@ -570,7 +601,22 @@ function render(ts) {
     drawBall(ballA, 'A');
     drawBall(ballB, 'B');
     drawStatus();
-    updateDisplay();
+
+    // 碰撞粒子效果
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const pt = particles[i];
+        pt.x += pt.vx * dt;
+        pt.y += pt.vy * dt;
+        pt.vy += 120 * dt;
+        pt.life -= dt * 1.8;
+        if (pt.life <= 0) { particles.splice(i, 1); continue; }
+        ctx.globalAlpha = pt.life * 0.8;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.r * pt.life, 0, Math.PI * 2);
+        ctx.fillStyle = pt.color;
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
 
     animId = requestAnimationFrame(render);
 }
