@@ -169,6 +169,15 @@ function drawArrow(ctx, x1, y1, x2, y2, color) {
   ctx.closePath(); ctx.fill();
 }
 
+function niceCeil(v) {
+  if (v <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / p;
+  let s;
+  if (n <= 1) s = 1; else if (n <= 2) s = 2; else if (n <= 5) s = 5; else s = 10;
+  return s * p;
+}
+
 function niceStep(max) {
   if (max <= 0) return 1;
   const raw = max / 5;
@@ -180,52 +189,55 @@ function niceStep(max) {
 }
 
 function drawCharts() {
-  drawChart(document.getElementById('vt'), (t) => state.v0 - state.g * t, 'v (m/s)', false);
-  drawChart(document.getElementById('st'), (t) => state.v0 * t - 0.5 * state.g * t * t, 's (m)', true);
+  const V_AXIS = 40;                                  // v 轴固定量程 ±40 m/s（覆盖 v0 上限）
+  const S_AXIS = Math.max(200, niceCeil(state.hMax)); // s 轴最小 200m，超大时自适应
+  drawChart(document.getElementById('vt'), (t) => state.v0 - state.g * t, 'v (m/s)', -V_AXIS, V_AXIS);
+  drawChart(document.getElementById('st'), (t) => state.v0 * t - 0.5 * state.g * t * t, 's (m)', 0, S_AXIS);
 }
 
-function drawChart(canvas, fn, label, zeroAtBottom) {
+function drawChart(canvas, fn, label, yMin, yMax) {
   const ctx = canvas.getContext('2d');
   const cw = canvas.width, ch = canvas.height;
   ctx.clearRect(0, 0, cw, ch);
-  const padL = 36, padB = 20, padT = 10, padR = 10;
+  const padL = 42, padB = 22, padT = 10, padR = 10;
   const plotW = cw - padL - padR, plotH = ch - padT - padB;
-  const baseline = zeroAtBottom ? padT + plotH : padT + plotH / 2;
+  const yPix = (val) => {
+    let p = padT + plotH - (val - yMin) / (yMax - yMin) * plotH;
+    return Math.max(padT, Math.min(padT + plotH, p));
+  };
   // 坐标轴
   ctx.strokeStyle = '#dcdfe6'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH); ctx.stroke();
-  // 0 基准线
-  ctx.strokeStyle = '#e4e7ed';
-  ctx.beginPath(); ctx.moveTo(padL, baseline); ctx.lineTo(padL + plotW, baseline); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH);
+  ctx.stroke();
+  // 网格 + y 轴刻度
+  ctx.fillStyle = '#909399'; ctx.font = '9px sans-serif';
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const val = yMin + (yMax - yMin) * i / steps;
+    const py = yPix(val);
+    ctx.strokeStyle = '#eef0f3';
+    ctx.beginPath(); ctx.moveTo(padL, py); ctx.lineTo(padL + plotW, py); ctx.stroke();
+    ctx.fillText(val.toFixed(0), 4, py + 3);
+  }
+  // x 轴刻度（时间）
+  for (let i = 0; i <= 2; i++) {
+    const tt = state.T * i / 2;
+    const px = padL + plotW * i / 2;
+    ctx.fillText(tt.toFixed(1) + 's', px - 8, padT + plotH + 14);
+  }
   // 曲线
-  const vmax = Math.max(yMaxFor(fn), 0.001);
   ctx.strokeStyle = '#3370ff'; ctx.lineWidth = 2; ctx.beginPath();
   for (let i = 0; i <= 100; i++) {
     const t = state.T * i / 100;
-    const val = fn(t);
     const px = padL + plotW * i / 100;
-    let py;
-    if (zeroAtBottom) {
-      py = (padT + plotH) - (val / vmax) * plotH;
-    } else {
-      py = baseline - (val / vmax) * (plotH / 2);
-    }
+    const py = yPix(fn(t));
     if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
   }
   ctx.stroke();
   // 标签
   ctx.fillStyle = '#909399'; ctx.font = '10px sans-serif';
   ctx.fillText(label, padL + 2, padT + 10);
-  ctx.fillText('t=' + state.T.toFixed(1) + 's', padL + plotW - 36, padT + plotH + 14);
-}
-
-function yMaxFor(fn) {
-  let m = 0;
-  for (let i = 0; i <= 50; i++) {
-    const t = state.T * i / 50;
-    m = Math.max(m, Math.abs(fn(t)));
-  }
-  return m;
 }
 
 function updateReadout(y, v) {
