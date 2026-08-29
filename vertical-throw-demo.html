@@ -191,11 +191,11 @@ function niceStep(max) {
 function drawCharts() {
   const V_AXIS = 40;                                  // v 轴固定量程 ±40 m/s（覆盖 v0 上限）
   const S_AXIS = Math.max(200, niceCeil(state.hMax)); // s 轴最小 200m，超大时自适应
-  drawChart(document.getElementById('vt'), (t) => state.v0 - state.g * t, 'v (m/s)', -V_AXIS, V_AXIS);
-  drawChart(document.getElementById('st'), (t) => state.v0 * t - 0.5 * state.g * t * t, 's (m)', 0, S_AXIS);
+  drawChart(document.getElementById('vt'), (t) => state.v0 - state.g * t, 'v (m/s)', -V_AXIS, V_AXIS, ' m/s');
+  drawChart(document.getElementById('st'), (t) => state.v0 * t - 0.5 * state.g * t * t, 's (m)', 0, S_AXIS, ' m');
 }
 
-function drawChart(canvas, fn, label, yMin, yMax) {
+function drawChart(canvas, fn, label, yMin, yMax, unit) {
   const ctx = canvas.getContext('2d');
   const cw = canvas.width, ch = canvas.height;
   ctx.clearRect(0, 0, cw, ch);
@@ -205,8 +205,8 @@ function drawChart(canvas, fn, label, yMin, yMax) {
     let p = padT + plotH - (val - yMin) / (yMax - yMin) * plotH;
     return Math.max(padT, Math.min(padT + plotH, p));
   };
-  // 坐标轴
-  ctx.strokeStyle = '#dcdfe6'; ctx.lineWidth = 1;
+  // 主坐标轴（加深显眼）
+  ctx.strokeStyle = '#606266'; ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH);
   ctx.stroke();
@@ -219,6 +219,12 @@ function drawChart(canvas, fn, label, yMin, yMax) {
     ctx.strokeStyle = '#eef0f3';
     ctx.beginPath(); ctx.moveTo(padL, py); ctx.lineTo(padL + plotW, py); ctx.stroke();
     ctx.fillText(val.toFixed(0), 4, py + 3);
+  }
+  // v=0 横轴（仅 v-t 图，yMin<0 时画为显眼横轴）
+  if (yMin < 0) {
+    const py0 = yPix(0);
+    ctx.strokeStyle = '#606266'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(padL, py0); ctx.lineTo(padL + plotW, py0); ctx.stroke();
   }
   // x 轴刻度（时间）
   for (let i = 0; i <= 2; i++) {
@@ -235,6 +241,20 @@ function drawChart(canvas, fn, label, yMin, yMax) {
     if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
   }
   ctx.stroke();
+  // 动画同步：播放头竖线 + 移动点 + 实时数值标签
+  const tf = state.T > 0 ? state.t / state.T : 0;
+  const pxNow = padL + plotW * tf;
+  const pyNow = yPix(fn(state.t));
+  ctx.strokeStyle = 'rgba(51,112,255,0.35)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pxNow, padT); ctx.lineTo(pxNow, padT + plotH); ctx.stroke();
+  ctx.fillStyle = '#f56c6c';
+  ctx.beginPath(); ctx.arc(pxNow, pyNow, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.font = '10px sans-serif';
+  const valTxt = fn(state.t).toFixed(1) + unit;
+  let lx = pxNow + 6, ly = pyNow - 6;
+  if (lx > padL + plotW - 34) lx = pxNow - 38;
+  if (ly < padT + 8) ly = pyNow + 14;
+  ctx.fillText(valTxt, lx, ly);
   // 标签
   ctx.fillStyle = '#909399'; ctx.font = '10px sans-serif';
   ctx.fillText(label, padL + 2, padT + 10);
