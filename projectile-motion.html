@@ -179,7 +179,7 @@
                 <div class="data-grid">
                     <div class="data-item"><span>时间 t</span><b id="time">0.00 s</b></div>
                     <div class="data-item"><span>水平位移 x</span><b id="positionX">0.00 m</b></div>
-                    <div class="data-item"><span>竖直位移 y</span><b id="positionY">220.00 m</b></div>
+                    <div class="data-item"><span>离地高度 y</span><b id="positionY">220.00 m</b></div>
                     <div class="data-item"><span>水平速度 vₓ</span><b id="vx">12.00 m/s</b></div>
                     <div class="data-item"><span>竖直速度 |vᵧ|</span><b id="vy">0.00 m/s</b></div>
                     <div class="data-item"><span>合速度 v</span><b id="vv">12.00 m/s</b></div>
@@ -239,7 +239,7 @@
         function hMeters() { return Number(inputH.value); }
         function v0Meters() { return Number(inputV0.value); }
         function xOf(time) { return v0Meters() * time; }
-        function yOf(time) { return hMeters() - 0.5 * g * time * time; }
+        function yOf(time) { return hMeters() - 0.5 * g * time * time; }  // 这里 y 表示离地高度
         function tEnd() { return Math.sqrt(2 * hMeters() / g); }
         function rangeMeters() { return v0Meters() * tEnd(); }
         function currentPosition() { return { x: xOf(t), y: yOf(t) }; }
