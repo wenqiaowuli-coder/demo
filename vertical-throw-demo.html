@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>竖直上抛运动演示</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f5f7fa;
+    color: #1f2329;
+    padding: 24px;
+  }
+  h1 { font-size: 22px; margin-bottom: 16px; text-align: center; }
+  .layout { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+  .panel {
+    background: #fff; border-radius: 12px; padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .stage { width: 360px; }
+  canvas { display: block; background: #fafbfc; border-radius: 8px; }
+  .readout { margin-top: 12px; font-size: 14px; }
+  .readout div { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #eee; }
+  .readout b { color: #3370ff; }
+  .charts { width: 420px; }
+  .chart-title { font-size: 14px; font-weight: 600; margin: 8px 0 4px; }
+  .controls {
+    width: 100%; max-width: 820px; margin: 16px auto 0;
+    display: flex; gap: 16px; align-items: center; flex-wrap: wrap; justify-content: center;
+  }
+  button {
+    background: #3370ff; color: #fff; border: none; border-radius: 6px;
+    padding: 8px 18px; font-size: 14px; cursor: pointer;
+  }
+  button:hover { background: #245bdb; }
+  button.secondary { background: #e8eaed; color: #1f2329; }
+  button.secondary:hover { background: #d8dce0; }
+  .slider-group { display: flex; flex-direction: column; font-size: 13px; }
+  .slider-group label { margin-bottom: 4px; }
+  input[type=range] { width: 160px; }
+</style>
+</head>
+<body>
+<h1>竖直上抛运动演示</h1>
+<div class="layout">
+  <div class="panel stage">
+    <canvas id="scene" width="360" height="480"></canvas>
+    <div class="readout">
+      <div><span>时间 t</span><b id="r-t">0.00 s</b></div>
+      <div><span>高度 y</span><b id="r-y">0.00 m</b></div>
+      <div><span>速度 v</span><b id="r-v">0.00 m/s</b></div>
+      <div><span>加速度 a</span><b id="r-a">-9.80 m/s²</b></div>
+      <div><span>最大高度</span><b id="r-hmax">--</b></div>
+    </div>
+  </div>
+  <div class="panel charts">
+    <div class="chart-title">速度-时间图 (v-t)</div>
+    <canvas id="vt" width="400" height="180"></canvas>
+    <div class="chart-title">位移-时间图 (s-t)</div>
+    <canvas id="st" width="400" height="180"></canvas>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="btn-play">播放</button>
+  <button id="btn-reset" class="secondary">重置</button>
+  <div class="slider-group">
+    <label>初速度 v₀: <span id="lab-v0">20</span> m/s</label>
+    <input type="range" id="sl-v0" min="5" max="40" value="20" step="1">
+  </div>
+  <div class="slider-group">
+    <label>重力加速度 g: <span id="lab-g">9.8</span> m/s²</label>
+    <input type="range" id="sl-g" min="1" max="20" value="9.8" step="0.1">
+  </div>
+  <div class="slider-group">
+    <label>播放速度: <span id="lab-sp">0.5</span>×</label>
+    <input type="range" id="sl-sp" min="0.1" max="2" value="0.5" step="0.1">
+  </div>
+</div>
+
+<script>
+const GROUND_PAD = 40;       // 地面距画布底部像素
+const SCALE_PX_PER_M = 4;    // 每米对应像素（自适应会覆盖）
+const scene = document.getElementById('scene');
+const sctx = scene.getContext('2d');
+const W = scene.width, H = scene.height;
+
+let state = {
+  v0: 20, g: 9.8, speed: 0.5,
+  t: 0, playing: false, lastTs: null,
+  T: 0, hMax: 0, pxPerM: 4
+};
+
+function recompute() {
+  state.T = 2 * state.v0 / state.g;
+  state.hMax = state.v0 * state.v0 / (2 * state.g);
+  // 自适应缩放：让最大高度+余量占画布可用高度
+  const usable = H - GROUND_PAD - 30;
+  state.pxPerM = Math.min(SCALE_PX_PER_M * 4, (usable - 20) / (state.hMax + 2));
+  if (!isFinite(state.pxPerM) || state.pxPerM <= 0) state.pxPerM = 4;
+  document.getElementById('r-hmax').textContent = state.hMax.toFixed(2) + ' m';
+}
+
+function yToPx(y) {
+  return H - GROUND_PAD - y * state.pxPerM;
+}
+
+function drawScene() {
+  sctx.clearRect(0, 0, W, H);
+  // 地面
+  const gy = H - GROUND_PAD;
+  sctx.strokeStyle = '#c9cdd4';
+  sctx.lineWidth = 2;
+  sctx.beginPath(); sctx.moveTo(0, gy); sctx.lineTo(W, gy); sctx.stroke();
+  // 标尺刻度
+  sctx.fillStyle = '#909399'; sctx.font = '10px sans-serif';
+  const step = niceStep(state.hMax);
+  for (let m = 0; m <= state.hMax + 0.001; m += step) {
+    const py = yToPx(m);
+    sctx.strokeStyle = '#ebeef5';
+    sctx.beginPath(); sctx.moveTo(30, py); sctx.lineTo(W, py); sctx.stroke();
+    sctx.fillText(m.toFixed(0) + 'm', 2, py + 3);
+  }
+
+  const y = state.v0 * state.t - 0.5 * state.g * state.t * state.t;
+  const v = state.v0 - state.g * state.t;
+  const cx = W / 2;
+
+  // 轨迹虚线
+  sctx.strokeStyle = '#bcd0ff'; sctx.setLineDash([4, 4]);
+  sctx.beginPath(); sctx.moveTo(cx, gy); sctx.lineTo(cx, yToPx(state.hMax)); sctx.stroke();
+  sctx.setLineDash([]);
+
+  const ballY = yToPx(y);
+  // 速度矢量（向上为正，红）
+  drawArrow(sctx, cx, ballY, cx, ballY - v * 3, '#f56c6c');
+  // 加速度矢量（恒定向下，橙）
+  drawArrow(sctx, cx, ballY, cx, ballY + state.g * 1.5, '#e6a23c');
+
+  // 小球
+  sctx.fillStyle = '#3370ff';
+  sctx.beginPath(); sctx.arc(cx, ballY, 10, 0, Math.PI * 2); sctx.fill();
+  sctx.fillStyle = '#fff'; sctx.font = '10px sans-serif';
+  sctx.fillText('v', cx + 6, ballY - v * 3 - 4);
+  sctx.fillText('g', cx + 6, ballY + state.g * 1.5 + 12);
+
+  return { y, v };
+}
+
+function drawArrow(ctx, x1, y1, x2, y2, color) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return;
+  const MAX = 110;
+  let ex = x2, ey = y2;
+  if (len > MAX) { ex = x1 + dx * MAX / len; ey = y1 + dy * MAX / len; }
+  // 限制在画布内（避免矢量越界）
+  ex = Math.max(2, Math.min(W - 2, ex));
+  ey = Math.max(2, Math.min(H - 2, ey));
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(ex, ey); ctx.stroke();
+  const ang = Math.atan2(ey - y1, ex - x1);
+  const ah = 6;
+  ctx.beginPath();
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(ex - ah * Math.cos(ang - 0.4), ey - ah * Math.sin(ang - 0.4));
+  ctx.lineTo(ex - ah * Math.cos(ang + 0.4), ey - ah * Math.sin(ang + 0.4));
+  ctx.closePath(); ctx.fill();
+}
+
+function niceStep(max) {
+  if (max <= 0) return 1;
+  const raw = max / 5;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / pow;
+  let s;
+  if (n < 1.5) s = 1; else if (n < 3) s = 2; else if (n < 7) s = 5; else s = 10;
+  return s * pow;
+}
+
+function drawCharts() {
+  drawChart(document.getElementById('vt'), (t) => state.v0 - state.g * t, 'v (m/s)', false);
+  drawChart(document.getElementById('st'), (t) => state.v0 * t - 0.5 * state.g * t * t, 's (m)', true);
+}
+
+function drawChart(canvas, fn, label, zeroAtBottom) {
+  const ctx = canvas.getContext('2d');
+  const cw = canvas.width, ch = canvas.height;
+  ctx.clearRect(0, 0, cw, ch);
+  const padL = 36, padB = 20, padT = 10, padR = 10;
+  const plotW = cw - padL - padR, plotH = ch - padT - padB;
+  const baseline = zeroAtBottom ? padT + plotH : padT + plotH / 2;
+  // 坐标轴
+  ctx.strokeStyle = '#dcdfe6'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH); ctx.stroke();
+  // 0 基准线
+  ctx.strokeStyle = '#e4e7ed';
+  ctx.beginPath(); ctx.moveTo(padL, baseline); ctx.lineTo(padL + plotW, baseline); ctx.stroke();
+  // 曲线
+  const vmax = Math.max(yMaxFor(fn), 0.001);
+  ctx.strokeStyle = '#3370ff'; ctx.lineWidth = 2; ctx.beginPath();
+  for (let i = 0; i <= 100; i++) {
+    const t = state.T * i / 100;
+    const val = fn(t);
+    const px = padL + plotW * i / 100;
+    let py;
+    if (zeroAtBottom) {
+      py = (padT + plotH) - (val / vmax) * plotH;
+    } else {
+      py = baseline - (val / vmax) * (plotH / 2);
+    }
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  // 标签
+  ctx.fillStyle = '#909399'; ctx.font = '10px sans-serif';
+  ctx.fillText(label, padL + 2, padT + 10);
+  ctx.fillText('t=' + state.T.toFixed(1) + 's', padL + plotW - 36, padT + plotH + 14);
+}
+
+function yMaxFor(fn) {
+  let m = 0;
+  for (let i = 0; i <= 50; i++) {
+    const t = state.T * i / 50;
+    m = Math.max(m, Math.abs(fn(t)));
+  }
+  return m;
+}
+
+function updateReadout(y, v) {
+  document.getElementById('r-t').textContent = state.t.toFixed(2) + ' s';
+  document.getElementById('r-y').textContent = y.toFixed(2) + ' m';
+  document.getElementById('r-v').textContent = v.toFixed(2) + ' m/s';
+  document.getElementById('r-a').textContent = '-' + state.g.toFixed(2) + ' m/s²';
+}
+
+function frame(ts) {
+  if (!state.playing) return;
+  if (state.lastTs == null) state.lastTs = ts;
+  const dt = (ts - state.lastTs) / 1000 * state.speed;
+  state.lastTs = ts;
+  state.t += dt;
+  if (state.t >= state.T) {
+    state.t = state.T;
+    state.playing = false;
+    document.getElementById('btn-play').textContent = '播放';
+  }
+  const { y, v } = drawScene();
+  updateReadout(y, v);
+  drawCharts();
+  if (state.playing) requestAnimationFrame(frame);
+}
+
+function play() {
+  if (state.t >= state.T) { state.t = 0; }
+  state.playing = true;
+  state.lastTs = null;
+  document.getElementById('btn-play').textContent = '暂停';
+  requestAnimationFrame(frame);
+}
+function pause() {
+  state.playing = false;
+  document.getElementById('btn-play').textContent = '播放';
+}
+function reset() {
+  pause();
+  state.t = 0;
+  const { y, v } = drawScene();
+  updateReadout(y, v);
+  drawCharts();
+}
+
+document.getElementById('btn-play').onclick = () => {
+  if (state.playing) pause(); else play();
+};
+document.getElementById('btn-reset').onclick = reset;
+document.getElementById('sl-v0').oninput = (e) => {
+  state.v0 = +e.target.value;
+  document.getElementById('lab-v0').textContent = state.v0;
+  recompute(); reset();
+};
+document.getElementById('sl-g').oninput = (e) => {
+  state.g = +e.target.value;
+  document.getElementById('lab-g').textContent = state.g.toFixed(1);
+  recompute(); reset();
+};
+document.getElementById('sl-sp').oninput = (e) => {
+  state.speed = +e.target.value;
+  document.getElementById('lab-sp').textContent = state.speed.toFixed(1);
+};
+
+recompute();
+reset();
+</script>
+</body>
+</html>
