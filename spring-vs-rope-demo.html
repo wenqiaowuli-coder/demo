@@ -133,8 +133,8 @@
           <input type="range" id="mass" min="0.5" max="2" step="0.1" value="1">
         </div>
         <div class="ctl">
-          <label>弹簧收缩时间 τ <b id="cVal">0.55 s</b></label>
-          <input type="range" id="damp" min="0.1" max="1.2" value="0.55" step="0.05">
+          <label>弹簧阻尼比 ζ <b id="cVal">0.12</b></label>
+          <input type="range" id="damp" min="0.02" max="0.5" value="0.12" step="0.02">
         </div>
         <div class="ctl">
           <label>重力 g <b id="gVal">9.8 m/s²</b></label>
@@ -151,8 +151,9 @@
       </div>
       <div class="conclusion" id="conclusion"></div>
       <div class="note">
-        <b>物理要点</b>：弹簧被剪断瞬间，<b>形变不能突变</b>，弹力仍 = kx₀ = mg，与重力抵消，质点加速度为 0，<b>球保持静止</b>，弹簧需要时间收缩；<br>
-        不可伸长绳被剪断瞬间，<b>约束张力立即消失</b>，合力 = mg，B 球立即进入自由落体。因此 <b>B 球先落地</b>。
+        <b>物理要点</b>：剪断瞬间弹簧<b>形变不能突变</b>，弹力仍 = kx₀ = mg，与重力抵消，球此刻加速度为 0；<br>
+        脱落后弹簧随球整体下落，并在共落参考系中做<b>阻尼简谐振荡</b>（弹簧可看到反复伸缩），把球"拽住/释放"，使球下坠延迟；
+        不可伸长绳被剪断瞬间，<b>约束张力立即消失</b>，B 球立即自由落体。因此 <b>B 球先落地</b>。
       </div>
     </div>
   </div>
@@ -203,14 +204,16 @@
     h: 5.0,        // 初始质心到地面高度
     k: 50,         // 弹簧刚度
     m: 1.0,        // 球质量
-    tau: 0.55,     // 弹簧收缩时间常数（教学简化）
+    zeta: 0.12,    // 弹簧阻尼比（欠阻尼 → 有限时长的自由阻尼振荡）
     g: 9.8,        // 重力
     speed: 1.0     // 播放速度
   };
 
+  var SPRING_NATURAL_M = 1.0;  // 弹簧自然长度（米，仅作图用，不参与受力）
+
   var State = { READY:'ready', CUTTING:'cutting', FALLING:'falling', LANDED:'landed' };
 
-  var sysA = { state: State.READY, y:0, vy:0, ay:0, stretch:0, shrinkT:0, landTime:null, landed:false, startY:0, eqY:0 };
+  var sysA = { state: State.READY, y:0, vy:0, ay:0, stretch:0, stretchV:0, landTime:null, landed:false };
   var sysB = { state: State.READY, y:0, vy:0, ay:0, landTime:null, landed:false };
   var time = 0;
   var running = false;
@@ -228,10 +231,9 @@
     return params.m * params.g / params.k;
   }
 
-  function computeShrinkTime(){
-    // 弹簧收缩时间常数（教学简化：模拟"弹性约束释放"耗时）
-    // τ 由用户滑条直接控制（默认 0.55s），k 越大 / m 越小 → 收缩越快
-    return Math.max(0.05, params.tau * Math.sqrt(params.m * 50 / params.k));
+  function computeDamping(){
+    // 由阻尼比 ζ 求阻尼系数 c = 2·ζ·√(mk)
+    return 2 * params.zeta * Math.sqrt(params.k * params.m);
   }
 
   function reset(){
@@ -241,12 +243,9 @@
     scissorsX = scissorsY = 0;
 
     var x0 = computeEquilibriumA();
-    var shrinkT = computeShrinkTime();
-    sysA.stretch = x0;
-    sysA.shrinkT = shrinkT;
+    sysA.stretch = x0;      // 初态：弹簧被拉伸 x0，形变不能突变
+    sysA.stretchV = 0;      // 初态：共落系内弹簧相对静止
     sysA.y = params.h;
-    sysA.startY = params.h;
-    sysA.eqY = params.h;        // 平衡位置 = h（弹簧拉伸到 x0）
     sysA.vy = 0;
     sysA.ay = 0;
     sysA.state = State.READY;
@@ -273,19 +272,15 @@
 
   // ---- 物理更新 ----
   //
-  // 物理模型（教学简化版本，严格匹配规格书意图）：
-  //   A 球（弹簧）：
-  //     - 剪断瞬间：弹簧形变不能突变，stretch = x0，弹力 kx0 = mg，合力 0，球保持静止。
-  //     - "弹簧收缩期"（时长 shrinkT）：弹力从 kx0 线性衰减到 0。
-  //       stretch(t) = x0 * (1 - t/shrinkT)
-  //       合力 F = mg - k*stretch(t)
-  //       加速度 a 从 0 线性增大到 g。
-  //     - 收缩期结束：stretch = 0，弹力消失，进入自由落体 a = g。
-  //   B 球（不可伸长绳）：
-  //     - 剪断瞬间绳张力立即消失，立即进入自由落体 a = g。
-  //
-  // 注：严格物理上"形变不能突变 + 力不能突变 → 球在平衡位置永远不动"，
-  //     本演示按高中教学常用简化，让"弹簧收缩"表现为一个有限时长的过渡过程。
+  // 物理模型（阻尼简谐振动，真实物理）：
+  //   整体下落参考系（自由落体、重力被惯性力抵消）内，弹簧做阻尼简谐振动：
+  //     m·ẍ = -k·x - c·ẋ ，初态 x(0) = x0 = mg/k，ẋ(0) = 0
+  //   地面系中球的离地高度：
+  //     y(t) = h - ½ g t² + (x0 - x(t))
+  //   即：整体自由落体 + 弹簧"拖住/抬升"带来的一段位移修正。
+  //   弹簧始终具有弹性形变 x（被拉伸 x0 起步），在共落系内周期性伸缩（阻尼衰减），
+  //   因此动画中弹簧会随小球自由下落并持续【可见地伸缩变形】。
+  //   B 球（不可伸长绳）：剪断瞬间张力消失，立即自由落体 a = g。
   var cutStartTime = 0;
   function step(dt){
     if(!running) return;
@@ -306,30 +301,24 @@
       }
     }
 
-    // --- A 球：弹簧收缩期 → 自由落体 ---
-    if(sysA.state === State.CUTTING){
-      var elapsed = time - cutStartTime;
-      var ratio = Math.min(elapsed / sysA.shrinkT, 1);
-      sysA.stretch = computeEquilibriumA() * (1 - ratio);
-
-      // 合力 = mg - k*stretch (向下为正)
-      var F = params.m * params.g - params.k * sysA.stretch;
-      sysA.ay = F / params.m;
-      sysA.vy += sysA.ay * dt;
-      sysA.y  -= sysA.vy * dt;
-
-      if(ratio >= 1){
-        sysA.stretch = 0;
-        sysA.state = State.FALLING;
-      }
-    } else if(sysA.state === State.FALLING){
-      sysA.ay = params.g;
-      sysA.vy += params.g * dt;
-      sysA.y  -= sysA.vy * dt;
-      if(sysA.y <= 0){
-        sysA.y = 0;
-        sysA.vy = 0;
-        sysA.ay = 0;
+    // --- A 球：弹簧+质量脱离支点后整体下落，弹簧在共落系内做阻尼简谐振动 ---
+    if(sysA.state === State.CUTTING || sysA.state === State.FALLING){
+      sysA.state = State.FALLING;
+      var x0 = computeEquilibriumA();
+      var cD = computeDamping();
+      // 共落系：m·ẍ = -k·x - c·ẋ（阻尼简谐振动）
+      var axS = -(params.k/params.m)*sysA.stretch - (cD/params.m)*sysA.stretchV;
+      sysA.stretchV += axS * dt;
+      sysA.stretch  += sysA.stretchV * dt;
+      // 地面系：整体自由落体 + 形变修正
+      var tFall = time - cutStartTime;
+      var yFree = params.h - 0.5 * params.g * tFall * tFall;
+      var yA = yFree + (x0 - sysA.stretch);
+      sysA.y  = Math.max(0, yA);
+      sysA.vy = Math.max(0, params.g * tFall - sysA.stretchV);  // 向下速度
+      sysA.ay = params.g + axS;                                  // 地面系加速度
+      if(yA <= 0){
+        sysA.y = 0; sysA.vy = 0; sysA.ay = 0;
         sysA.state = State.LANDED;
         if(sysA.landTime === null){ sysA.landTime = time; sysA.landed = true; }
       }
@@ -360,18 +349,18 @@
     ctx.fill();
   }
 
-  function drawSpring(ctx, c, topY, botY, color, stretchFrac, axisX){
-    // 锯齿折线弹簧，从支点 (axisX, topY) 到 (axisX, botY)
+  function drawSpring(ctx, c, topY, botY, color, axisX){
+    // 锯齿折线弹簧，从 (axisX, topY) 到 (axisX, botY)，线圈疏密随弹簧实际长度变化（体现伸缩）
     var len = botY - topY;
     if(len <= 0) return;
-    var N = Math.max(10, Math.round(len / 8));  // 锯齿数
+    var N = Math.max(8, Math.round(len / 6));  // 锯齿数随长度变化
     var coilH = 6;          // 锯齿幅度
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(axisX, topY);
-    // 留一段直线再开始锯齿
-    var margin = 12;
+    // 顶部留一小段直线
+    var margin = 8;
     var startY = topY + margin;
     var endY = botY - 8;
     ctx.lineTo(axisX, startY);
@@ -387,6 +376,38 @@
     }
     ctx.lineTo(axisX, botY);
     ctx.stroke();
+  }
+
+  function drawStretchRef(ctx, c, ballY, stretchM){
+    // 自然长度参考刻度：以小球上方 L_nat 处为基准，标注当前形变量拉伸/压缩
+    var px = c.width/2;
+    var x0px = (px + 6);
+    var natTop = ballY - SPRING_NATURAL_M * PIXEL_PER_M;
+    ctx.strokeStyle = 'rgba(125,211,252,.35)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,4]);
+    // 一条过自然长度顶端的水平短虚线
+    ctx.beginPath();
+    ctx.moveTo(x0px - 4, natTop);
+    ctx.lineTo(x0px + 26, natTop);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // 当前弹簧顶端位置
+    var curTop = ballY - (SPRING_NATURAL_M + stretchM) * PIXEL_PER_M;
+    ctx.fillStyle = '#7dd3fc';
+    ctx.beginPath();
+    ctx.moveTo(x0px - 4, curTop);
+    ctx.lineTo(x0px + 6, curTop);
+    ctx.lineTo(x0px + 1, curTop + (curTop > natTop ? 6 : -6));
+    ctx.closePath();
+    ctx.fill();
+    // 标注拉伸量
+    ctx.fillStyle = '#7dd3fc';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('L\u208b', px - 40, natTop);
+    ctx.fillText('Δx ' + stretchM.toFixed(3) + 'm', px - 40, (curTop + natTop)/2);
   }
 
   function drawRope(ctx, c, topY, botY, color, axisX, cut){
@@ -537,7 +558,18 @@
     var botY = ballY;
     drawSupport(ctxA, c, '#38bdf8');
     var springColor = sysA.state === State.READY ? '#94a3b8' : '#cbd5e1';
-    drawSpring(ctxA, c, topY, botY, springColor, sysA.stretch, c.width/2);
+    if(sysA.state === State.READY){
+      // 就绪：弹簧连在支点上，从支点画到球（已被拉伸 x0 的平衡态）
+      drawSpring(ctxA, c, topY, botY, springColor, c.width/2);
+    } else {
+      // 脱落后：弹簧+球整体自由下落，弹簧自身长度 = 自然长 L:+形变 x，
+      // 随 x 的阻尼振荡而【可见地伸缩】，形变直观体现。
+      var springLenPx = (SPRING_NATURAL_M + sysA.stretch) * PIXEL_PER_M;
+      var sTop = Math.max(0, ballY - springLenPx);
+      drawSpring(ctxA, c, sTop, botY, '#7dd3fc', c.width/2);
+      // 自然长度参考刻度（细线，对照可见形变量）
+      drawStretchRef(ctxA, c, botY, sysA.stretch);
+    }
 
     // 球
     var ballColor = sysA.state === State.LANDED ? '#4ade80' : '#38bdf8';
@@ -595,12 +627,9 @@
     if(sysA.state === State.READY){
       aState.className = 'state-strip';
       aState.textContent = '就绪 · 弹簧伸长 ' + (params.m*params.g/params.k).toFixed(3) + ' m 平衡静止';
-    } else if(sysA.state === State.CUTTING){
-      aState.className = 'state-strip cut';
-      aState.textContent = '剪断后 · 弹簧恢复中（a 仍接近 0）';
     } else if(sysA.state === State.FALLING){
       aState.className = 'state-strip cut';
-      aState.textContent = '弹簧恢复原长 · 进入自由落体（a = g）';
+      aState.textContent = '剪断后 · 弹簧随球自由下落，做阻尼简谐振荡（a 在 g 附近起伏）';
     } else {
       aState.className = 'state-strip done';
       aState.textContent = 'A 球已落地（t = ' + sysA.landTime.toFixed(2) + 's）';
@@ -623,8 +652,9 @@
       var winner = dt > 0 ? 'B 球先落地' : 'A 球先落地';
       concl.className = 'conclusion show';
       concl.innerHTML = '<b>实验结论：</b>' + winner + '，A 比 B 晚落地 <b>' + Math.abs(dt).toFixed(2) + ' s</b>。<br>' +
-        '物理原因：弹簧被剪断瞬间形变 <b>不能突变</b>，弹力 kx₀ = mg 仍与重力抵消，A 球加速度近似为 0，' +
-        '需要等弹簧收缩到原长后才进入自由落体；而不可伸长绳的约束是<b>瞬时解除</b>，B 球从剪断瞬间起就直接做自由落体。';
+        '物理原因：剪断瞬间弹簧形变 <b>不能突变</b>，弹力 kx₀ = mg 仍与重力抵消；脱落后弹簧在小球上方做<b>阻尼简谐振荡</b>，' +
+        '反复把球"拽住 / 释放"，使其加速度在 g 附近起伏、整体下坠被延迟；' +
+        '而不可伸长绳约束是<b>瞬时解除</b>，B 球从剪断瞬间起就直接自由落体。';
       startBtn.disabled = true;
       startBtn.textContent = '✓ 实验完成';
     }
@@ -654,13 +684,13 @@
     params.h  = +elH.value;
     params.k  = +elK.value;
     params.m  = +elM.value;
-    params.tau = +elC.value;
+    params.zeta = +elC.value;
     params.g  = +elG.value;
     params.speed = +elSp.value;
     hVal.textContent = params.h.toFixed(1) + ' m';
     kVal.textContent = params.k + ' N/m';
     mVal.textContent = params.m.toFixed(1) + ' kg';
-    cVal.textContent = params.tau.toFixed(2) + ' s';
+    cVal.textContent = params.zeta.toFixed(2);
     gVal.textContent = params.g.toFixed(1) + ' m/s²';
     spVal.textContent = params.speed.toFixed(2) + 'x';
   }
