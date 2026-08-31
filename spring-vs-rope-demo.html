@@ -122,8 +122,8 @@
       <h2 style="color:var(--text)">实验控制</h2>
       <div class="controls">
         <div class="ctl">
-          <label>下落高度 h <b id="hVal">5.0 m</b></label>
-          <input type="range" id="height" min="2" max="6" value="5" step="0.5">
+          <label>下落高度 h <b id="hVal">7.0 m</b></label>
+          <input type="range" id="height" min="2" max="8" value="7" step="0.5">
         </div>
         <div class="ctl">
           <label>弹簧刚度 k <b id="kVal">25 N/m</b></label>
@@ -142,8 +142,8 @@
           <input type="range" id="grav" min="1.6" max="25" value="9.8" step="0.1">
         </div>
         <div class="ctl">
-          <label>播放速度 <b id="spVal">1.0x</b></label>
-          <input type="range" id="speed" min="0.25" max="2" value="1" step="0.05">
+          <label>播放速度 <b id="spVal">0.60x</b></label>
+          <input type="range" id="speed" min="0.25" max="2" value="0.6" step="0.05">
         </div>
       </div>
       <div class="btn-row">
@@ -202,14 +202,15 @@
   var GROUND_PAD_PX = 30;    // 地面距画布底
   var REMNANT_PX = 34;       // 剪断后残留在支点上的绳头长度
   var STUB_PX = 9;           // 剪断后留在弹簧/球上方的绳头长度
+  var ROPE_MIN_PX = 16;      // 初始悬挂细绳的最小可见长度（极端参数下的几何保护）
 
   var params = {
-    h: 5.0,        // 初始质心到地面高度
+    h: 7.0,        // 初始质心到地面高度（增大 → 细绳更短、下落更久，弹簧振荡更可见）
     k: 25,         // 弹簧刚度（取较小值 → 静伸长 x₀=mg/k 更大，振荡伸缩更明显）
     m: 1.0,        // 球质量
     zeta: 0.12,    // 弹簧阻尼比（欠阻尼 → 有限时长的自由阻尼振荡）
     g: 9.8,        // 重力
-    speed: 1.0     // 播放速度
+    speed: 0.6     // 播放速度（默认慢放，不改变物理结果，仅延长屏幕观察时间）
   };
 
   var SPRING_NATURAL_M = 1.0;  // 弹簧自然长度（米，仅作图用，不参与受力）
@@ -621,8 +622,9 @@
     drawSupport(ctxA, c, '#38bdf8');
 
     // 弹簧始终连着小球：当前长度 = 自然长 L₀ + 形变 x
+    // （顶端钳制：极端参数下保证悬挂细绳至少 ROPE_MIN_PX 可见，仅影响绘图、不影响物理量）
     var springLenPx = (SPRING_NATURAL_M + sysA.stretch) * PIXEL_PER_M;
-    var springTop = ballY - springLenPx;
+    var springTop = Math.max(ballY - springLenPx, pY + ROPE_MIN_PX);
 
     if(sysA.state === State.READY){
       // 等高参考虚线（两球同一水平线）
@@ -794,7 +796,7 @@
       // 记录两侧剪断位置（细绳中点）
       var pYA = pivotY(cA), gYA = groundY(cA);
       var ballYA0 = gYA - sysA.y * PIXEL_PER_M;
-      var springTopA0 = ballYA0 - (SPRING_NATURAL_M + sysA.stretch) * PIXEL_PER_M;
+      var springTopA0 = Math.max(ballYA0 - (SPRING_NATURAL_M + sysA.stretch) * PIXEL_PER_M, pYA + ROPE_MIN_PX);
       cutYA = (pYA + springTopA0) / 2;          // A：弹簧上方细绳的中点
       var ballYB0 = groundY(cB) - sysB.y * PIXEL_PER_M;
       cutYB = (pivotY(cB) + ballYB0) / 2;       // B：细绳中点
