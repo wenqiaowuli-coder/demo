@@ -83,11 +83,12 @@
     <div class="stage-row">
       <!-- A 球（弹簧） -->
       <div class="card a">
-        <h2>A 球 · 弹簧悬挂 <span class="tag">弹力 = k·x</span></h2>
-        <canvas id="canvasA" width="520" height="420"></canvas>
+        <h2>A 球 · 细绳 + 弹簧悬挂 <span class="tag">剪断弹簧上方的细绳 · 弹力 = k·x</span></h2>
+        <canvas id="canvasA" width="520" height="560"></canvas>
         <div class="legend">
           <span><i class="dot" style="background:var(--a)"></i>A 球 (m=1 kg)</span>
-          <span><i class="dot" style="background:#94a3b8"></i>弹簧 (k=50 N/m)</span>
+          <span><i class="dot" style="background:#cbd5e1"></i>细绳（弹簧上方）</span>
+          <span><i class="dot" style="background:#7dd3fc"></i>弹簧 (k=50 N/m)</span>
         </div>
         <div class="data">
           <div class="cell"><div class="k">时间 t</div><div class="v" id="aT">0.00 s</div></div>
@@ -95,13 +96,13 @@
           <div class="cell"><div class="k">加速度 a</div><div class="v" id="aA">0.00 m/s²</div></div>
           <div class="cell"><div class="k">形变 Δx</div><div class="v" id="aX">0.000 m</div></div>
         </div>
-        <div class="state-strip" id="aState">就绪 · 弹簧伸长 0.196 m 平衡静止</div>
+        <div class="state-strip" id="aState">就绪 · 绳张紧 + 弹簧伸长 0.196 m，A 球平衡静止</div>
       </div>
 
       <!-- B 球（绳子） -->
       <div class="card b">
-        <h2>B 球 · 不可伸长绳 <span class="tag">张力约束瞬时解除</span></h2>
-        <canvas id="canvasB" width="520" height="420"></canvas>
+        <h2>B 球 · 不可伸长绳 <span class="tag">剪断细绳 · 张力瞬时解除</span></h2>
+        <canvas id="canvasB" width="520" height="560"></canvas>
         <div class="legend">
           <span><i class="dot" style="background:var(--b)"></i>B 球 (m=1 kg)</span>
           <span><i class="dot" style="background:#94a3b8"></i>轻绳 (T=mg)</span>
@@ -122,7 +123,7 @@
       <div class="controls">
         <div class="ctl">
           <label>下落高度 h <b id="hVal">5.0 m</b></label>
-          <input type="range" id="height" min="2" max="8" value="5" step="0.5">
+          <input type="range" id="height" min="2" max="6" value="5" step="0.5">
         </div>
         <div class="ctl">
           <label>弹簧刚度 k <b id="kVal">50 N/m</b></label>
@@ -151,9 +152,9 @@
       </div>
       <div class="conclusion" id="conclusion"></div>
       <div class="note">
-        <b>物理要点</b>：剪断瞬间弹簧<b>形变不能突变</b>，弹力仍 = kx₀ = mg，与重力抵消，球此刻加速度为 0；<br>
-        脱落后弹簧随球整体下落，并在共落参考系中做<b>阻尼简谐振荡</b>（弹簧可看到反复伸缩），把球"拽住/释放"，使球下坠延迟；
-        不可伸长绳被剪断瞬间，<b>约束张力立即消失</b>，B 球立即自由落体。因此 <b>B 球先落地</b>。
+        <b>物理要点</b>：左侧为<b>细绳（上）+ 弹簧（下）</b>串联悬挂，剪断的是<b>弹簧上方的细绳</b>。剪断瞬间弹簧<b>形变不能突变</b>，弹力仍 = kx₀ = mg，与重力抵消，A 球此刻加速度为 0、<b>不会立即下落</b>；<br>
+        随后弹簧随球整体下落，并在共落参考系中做<b>阻尼简谐振荡</b>（弹簧可看到反复伸缩），把球"拽住/释放"，使球下坠延迟；
+        右侧不可伸长绳被剪断瞬间，<b>约束张力立即消失</b>，B 球立即自由落体。因此 <b>B 球先落地</b>。
       </div>
     </div>
   </div>
@@ -196,9 +197,11 @@
   var concl  = document.getElementById('conclusion');
 
   // ---- 状态 ----
-  var PIXEL_PER_M = 60;      // 1m = 60px（5m 占 300px）
-  var SCENE_TOP_PX = 60;     // 支点距离画布顶
+  var PIXEL_PER_M = 45;      // 1m = 45px（5m 占 225px，给上方绳+弹簧留出可见长度）
+  var SCENE_TOP_PX = 70;     // 支点距离画布顶
   var GROUND_PAD_PX = 30;    // 地面距画布底
+  var REMNANT_PX = 34;       // 剪断后残留在支点上的绳头长度
+  var STUB_PX = 9;           // 剪断后留在弹簧/球上方的绳头长度
 
   var params = {
     h: 5.0,        // 初始质心到地面高度
@@ -218,8 +221,8 @@
   var time = 0;
   var running = false;
   var cutFlash = 0;       // 剪断动画 0..1
-  var scissorsX = 0;       // 剪刀位置 (A 球弹簧中间)
-  var scissorsY = 0;
+  var cutYA = 0;          // A 侧剪断位置（弹簧上方细绳的中点）
+  var cutYB = 0;          // B 侧剪断位置（细绳中点）
 
   // ---- 工具 ----
   function groundY(c){ return c.height - GROUND_PAD_PX; }
@@ -240,7 +243,7 @@
     running = false;
     time = 0;
     cutFlash = 0;
-    scissorsX = scissorsY = 0;
+    cutYA = cutYB = 0;
 
     var x0 = computeEquilibriumA();
     sysA.stretch = x0;      // 初态：弹簧被拉伸 x0，形变不能突变
@@ -260,13 +263,13 @@
     sysB.landed = false;
 
     aState.className = 'state-strip';
-    aState.textContent = '就绪 · 弹簧伸长 ' + x0.toFixed(3) + ' m 平衡静止';
+    aState.textContent = '就绪 · 绳张紧 + 弹簧伸长 ' + x0.toFixed(3) + ' m，A 球平衡静止';
     bState.className = 'state-strip';
-    bState.textContent = '就绪 · 绳张紧平衡静止';
+    bState.textContent = '就绪 · 绳张紧，B 球平衡静止';
     concl.className = 'conclusion';
     concl.innerHTML = '';
     startBtn.disabled = false;
-    startBtn.textContent = '▶ 开始实验（剪断）';
+    startBtn.textContent = '▶ 开始实验（同时剪断两侧细绳）';
     drawAll();
   }
 
@@ -421,6 +424,67 @@
     ctx.setLineDash([]);
   }
 
+  function drawHeightGuide(ctx, c, ballY, label){
+    // 初始状态两球等高的参考虚线（仅在静止时画）
+    ctx.save();
+    ctx.strokeStyle = 'rgba(148,163,184,.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5,5]);
+    ctx.beginPath();
+    ctx.moveTo(14, ballY);
+    ctx.lineTo(c.width - 14, ballY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(148,163,184,.85)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, 18, ballY - 9);
+    ctx.restore();
+  }
+
+  function drawSegLabel(ctx, axisX, y, text, color){
+    ctx.fillStyle = color || '#94a3b8';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, axisX - 34, y);
+  }
+
+  function drawRopeRemnant(ctx, c, pY){
+    // 剪断后残留在支点上的绳头，轻微摆动、衰减
+    var axisX = c.width/2;
+    var t = Math.max(0, time - cutStartTime);
+    var ang = 0.38 * Math.sin(t * 9) * Math.exp(-t * 1.1);
+    var len = REMNANT_PX;
+    var ex = axisX + Math.sin(ang) * len;
+    var ey = pY + Math.cos(ang) * len;
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(axisX, pY);
+    ctx.quadraticCurveTo(axisX + Math.sin(ang) * len * 0.4, pY + len * 0.5, ex, ey);
+    ctx.stroke();
+    // 断口
+    ctx.fillStyle = '#f87171';
+    ctx.beginPath();
+    ctx.arc(ex, ey, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawRopeStub(ctx, c, topY){
+    // 剪断后留在弹簧/球上方的一小段绳头
+    var axisX = c.width/2;
+    var t = Math.max(0, time - cutStartTime);
+    var ang = 0.22 * Math.sin(t * 11);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(axisX, topY);
+    ctx.lineTo(axisX + Math.sin(ang) * STUB_PX, topY - Math.cos(ang) * STUB_PX);
+    ctx.stroke();
+  }
+
   function drawBall(ctx, c, ballPxY, color, label){
     var r = 16;
     ctx.fillStyle = color;
@@ -462,10 +526,10 @@
     }
   }
 
-  function drawScissors(ctx, c, ballY){
+  function drawScissors(ctx, c, yPx){
     if(cutFlash <= 0) return;
     var px = c.width/2;
-    var py = ballY - 50;
+    var py = yPx;
     var alpha = cutFlash;
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -503,11 +567,11 @@
     ctx.save();
     ctx.globalAlpha = cutFlash;
     ctx.fillStyle = 'rgba(248,113,113,.15)';
-    ctx.fillRect(c.width/2 - 22, yPx - 8, 44, 16);
+    ctx.fillRect(c.width/2 - 38, yPx - 8, 76, 16);
     ctx.strokeStyle = '#f87171';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([3,3]);
-    ctx.strokeRect(c.width/2 - 22, yPx - 8, 44, 16);
+    ctx.strokeRect(c.width/2 - 38, yPx - 8, 76, 16);
     ctx.setLineDash([]);
     ctx.fillStyle = '#f87171';
     ctx.font = 'bold 11px sans-serif';
@@ -547,39 +611,48 @@
   function drawSceneA(){
     var c = cA;
     ctxA.clearRect(0, 0, c.width, c.height);
-    drawAxis(ctxA, c, 'A · 弹簧', '#38bdf8');
+    drawAxis(ctxA, c, 'A · 细绳 + 弹簧', '#38bdf8');
 
     var pY = pivotY(c);
     var gY = groundY(c);
+    var cx = c.width/2;
     var ballY = gY - sysA.y * PIXEL_PER_M;
 
-    // 弹簧
-    var topY = pY;
-    var botY = ballY;
     drawSupport(ctxA, c, '#38bdf8');
-    var springColor = sysA.state === State.READY ? '#94a3b8' : '#cbd5e1';
+
+    // 弹簧始终连着小球：当前长度 = 自然长 L₀ + 形变 x
+    var springLenPx = (SPRING_NATURAL_M + sysA.stretch) * PIXEL_PER_M;
+    var springTop = ballY - springLenPx;
+
     if(sysA.state === State.READY){
-      // 就绪：弹簧连在支点上，从支点画到球（已被拉伸 x0 的平衡态）
-      drawSpring(ctxA, c, topY, botY, springColor, c.width/2);
+      // 等高参考虚线（两球同一水平线）
+      drawHeightGuide(ctxA, c, ballY, '两球等高 · h = ' + params.h.toFixed(1) + ' m');
+      // 上方细绳：支点 → 弹簧顶端（张紧）
+      drawRope(ctxA, c, pY, springTop, '#cbd5e1', cx, false);
+      // 下方弹簧：弹簧顶端 → 球（已被拉伸 x₀）
+      drawSpring(ctxA, c, springTop, ballY, '#7dd3fc', cx);
+      // 标注
+      drawSegLabel(ctxA, cx, (pY + springTop) / 2, '细绳', '#cbd5e1');
+      drawSegLabel(ctxA, cx, (springTop + ballY) / 2, '弹簧（已拉伸）', '#7dd3fc');
     } else {
-      // 脱落后：弹簧+球整体自由下落，弹簧自身长度 = 自然长 L:+形变 x，
-      // 随 x 的阻尼振荡而【可见地伸缩】，形变直观体现。
-      var springLenPx = (SPRING_NATURAL_M + sysA.stretch) * PIXEL_PER_M;
-      var sTop = Math.max(0, ballY - springLenPx);
-      drawSpring(ctxA, c, sTop, botY, '#7dd3fc', c.width/2);
+      // 剪断后：支点上残留的绳头（摆动）
+      drawRopeRemnant(ctxA, c, pY);
+      // 弹簧-球整体自由下落，弹簧长度随 x 的阻尼振荡而【可见地伸缩】
+      drawSpring(ctxA, c, springTop, ballY, '#7dd3fc', cx);
+      // 留在弹簧顶端的一小段绳头
+      drawRopeStub(ctxA, c, springTop);
       // 自然长度参考刻度（细线，对照可见形变量）
-      drawStretchRef(ctxA, c, botY, sysA.stretch);
+      drawStretchRef(ctxA, c, ballY, sysA.stretch);
     }
 
     // 球
     var ballColor = sysA.state === State.LANDED ? '#4ade80' : '#38bdf8';
     drawBall(ctxA, c, ballY, ballColor, 'A');
 
-    // 剪断标记/剪刀
+    // 剪断标记/剪刀（剪断的是弹簧上方的细绳）
     if(sysA.state !== State.READY){
-      var cutY = (pY + ballY) / 2;
-      drawCutMark(ctxA, c, cutY, '已剪断');
-      drawScissors(ctxA, c, ballY);
+      drawCutMark(ctxA, c, cutYA, '已剪断细绳');
+      drawScissors(ctxA, c, cutYA);
     }
 
     // 地面
@@ -590,24 +663,34 @@
   function drawSceneB(){
     var c = cB;
     ctxB.clearRect(0, 0, c.width, c.height);
-    drawAxis(ctxB, c, 'B · 绳子', '#f87171');
+    drawAxis(ctxB, c, 'B · 细绳', '#f87171');
 
     var pY = pivotY(c);
     var gY = groundY(c);
+    var cx = c.width/2;
     var ballY = gY - sysB.y * PIXEL_PER_M;
 
     drawSupport(ctxB, c, '#f87171');
-    var ropeColor = sysB.state === State.READY ? '#94a3b8' : '#cbd5e1';
-    var cut = sysB.state !== State.READY;
-    drawRope(ctxB, c, pY, ballY, ropeColor, c.width/2, cut);
+
+    if(sysB.state === State.READY){
+      // 等高参考虚线（两球同一水平线）
+      drawHeightGuide(ctxB, c, ballY, '两球等高 · h = ' + params.h.toFixed(1) + ' m');
+      // 细绳：支点 → 球（张紧）
+      drawRope(ctxB, c, pY, ballY, '#cbd5e1', cx, false);
+      drawSegLabel(ctxB, cx, (pY + ballY) / 2, '细绳（T = mg）', '#cbd5e1');
+    } else {
+      // 剪断后：支点上残留的绳头（摆动）
+      drawRopeRemnant(ctxB, c, pY);
+      // 留在球上方的一小段绳头
+      drawRopeStub(ctxB, c, ballY - 16);
+    }
 
     var ballColor = sysB.state === State.LANDED ? '#4ade80' : '#f87171';
     drawBall(ctxB, c, ballY, ballColor, 'B');
 
     if(sysB.state !== State.READY){
-      var cutY = (pY + ballY) / 2;
-      drawCutMark(ctxB, c, cutY, '已剪断');
-      drawScissors(ctxB, c, ballY);
+      drawCutMark(ctxB, c, cutYB, '已剪断细绳');
+      drawScissors(ctxB, c, cutYB);
     }
 
     var landMark = sysB.landed ? ('B 落地 t = ' + sysB.landTime.toFixed(2) + 's') : null;
@@ -626,10 +709,10 @@
 
     if(sysA.state === State.READY){
       aState.className = 'state-strip';
-      aState.textContent = '就绪 · 弹簧伸长 ' + (params.m*params.g/params.k).toFixed(3) + ' m 平衡静止';
+      aState.textContent = '就绪 · 绳张紧 + 弹簧伸长 ' + (params.m*params.g/params.k).toFixed(3) + ' m，A 球平衡静止';
     } else if(sysA.state === State.FALLING){
       aState.className = 'state-strip cut';
-      aState.textContent = '剪断后 · 弹簧随球自由下落，做阻尼简谐振荡（a 在 g 附近起伏）';
+      aState.textContent = '已剪断弹簧上方细绳 · 初始 a = 0，弹簧随球下落并阻尼简谐振荡';
     } else {
       aState.className = 'state-strip done';
       aState.textContent = 'A 球已落地（t = ' + sysA.landTime.toFixed(2) + 's）';
@@ -637,10 +720,10 @@
 
     if(sysB.state === State.READY){
       bState.className = 'state-strip';
-      bState.textContent = '就绪 · 绳张紧平衡静止';
+      bState.textContent = '就绪 · 绳张紧，B 球平衡静止';
     } else if(sysB.state === State.FALLING){
       bState.className = 'state-strip cut';
-      bState.textContent = '剪断瞬间 · 立即自由落体（a = g）';
+      bState.textContent = '细绳已剪断 · 张力立即消失，B 球立即自由落体（a = g）';
     } else {
       bState.className = 'state-strip done';
       bState.textContent = 'B 球已落地（t = ' + sysB.landTime.toFixed(2) + 's）';
@@ -652,9 +735,9 @@
       var winner = dt > 0 ? 'B 球先落地' : 'A 球先落地';
       concl.className = 'conclusion show';
       concl.innerHTML = '<b>实验结论：</b>' + winner + '，A 比 B 晚落地 <b>' + Math.abs(dt).toFixed(2) + ' s</b>。<br>' +
-        '物理原因：剪断瞬间弹簧形变 <b>不能突变</b>，弹力 kx₀ = mg 仍与重力抵消；脱落后弹簧在小球上方做<b>阻尼简谐振荡</b>，' +
-        '反复把球"拽住 / 释放"，使其加速度在 g 附近起伏、整体下坠被延迟；' +
-        '而不可伸长绳约束是<b>瞬时解除</b>，B 球从剪断瞬间起就直接自由落体。';
+        '物理原因：左侧剪断的是<b>弹簧上方的细绳</b>，剪断瞬间弹簧形变 <b>不能突变</b>，弹力 kx₀ = mg 仍与重力抵消，A 球初始加速度为 0；' +
+        '此后弹簧-球整体下落，弹簧在共落参考系内做<b>阻尼简谐振荡</b>，反复把球"拽住 / 释放"，使其下坠被延迟；' +
+        '而右侧不可伸长绳约束是<b>瞬时解除</b>，B 球从剪断瞬间起就直接自由落体。';
       startBtn.disabled = true;
       startBtn.textContent = '✓ 实验完成';
     }
@@ -708,7 +791,15 @@
   startBtn.addEventListener('click', function(){
     if(sysA.landed && sysB.landed) return;
     if(sysA.state === State.READY && sysB.state === State.READY){
-      // 启动剪断
+      // 记录两侧剪断位置（细绳中点）
+      var pYA = pivotY(cA), gYA = groundY(cA);
+      var ballYA0 = gYA - sysA.y * PIXEL_PER_M;
+      var springTopA0 = ballYA0 - (SPRING_NATURAL_M + sysA.stretch) * PIXEL_PER_M;
+      cutYA = (pYA + springTopA0) / 2;          // A：弹簧上方细绳的中点
+      var ballYB0 = groundY(cB) - sysB.y * PIXEL_PER_M;
+      cutYB = (pivotY(cB) + ballYB0) / 2;       // B：细绳中点
+
+      // 同时剪断：左侧弹簧上方的细绳、右侧细绳
       sysA.state = State.CUTTING;
       sysB.state = State.FALLING;   // B 立即自由落体
       cutStartTime = time;
