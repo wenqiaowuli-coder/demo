@@ -39,7 +39,7 @@
             background-color: #0b1828;
         }
         .control-panel {
-            margin-top: 16px;
+            margin-top: 14px;
             width: 100%;
             display: grid;
             grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.25fr);
@@ -117,7 +117,7 @@
             font-variant-numeric: tabular-nums;
         }
         .charts-row {
-            margin-top: 14px;
+            margin-top: 16px;
             width: 100%;
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -129,7 +129,7 @@
         .chart-panel canvas {
             display: block;
             width: 100%;
-            aspect-ratio: 5 / 3;
+            aspect-ratio: 20 / 9;
             background: #0b1828;
             border: 1px solid rgba(51, 136, 221, 0.55);
             border-radius: 8px;
@@ -173,6 +173,16 @@
         <div class="canvas-wrap">
             <canvas id="scene" role="img" aria-label="竖直上抛运动演示"></canvas>
         </div>
+        <div class="charts-row">
+            <section class="chart-panel">
+                <div class="group-title">速度-时间图 (v-t)</div>
+                <canvas id="vtChart" role="img" aria-label="速度-时间图像，斜率恒为 -g"></canvas>
+            </section>
+            <section class="chart-panel">
+                <div class="group-title">位移-时间图 (s-t)</div>
+                <canvas id="stChart" role="img" aria-label="位移-时间图像，开口向下的抛物线"></canvas>
+            </section>
+        </div>
         <div class="control-panel">
             <section class="param-group" aria-labelledby="parameterTitle">
                 <div class="group-title" id="parameterTitle">参数设定</div>
@@ -204,16 +214,6 @@
                 </div>
             </section>
         </div>
-        <div class="charts-row">
-            <section class="chart-panel">
-                <div class="group-title">速度-时间图 (v-t)</div>
-                <canvas id="vtChart" role="img" aria-label="速度-时间图像，斜率恒为 -g"></canvas>
-            </section>
-            <section class="chart-panel">
-                <div class="group-title">位移-时间图 (s-t)</div>
-                <canvas id="stChart" role="img" aria-label="位移-时间图像，开口向下的抛物线"></canvas>
-            </section>
-        </div>
         <div class="actions">
             <button id="btnStart" type="button">开始</button>
             <button id="btnPause" type="button" disabled>暂停</button>
@@ -234,11 +234,11 @@
         const g = 10;
         const BASE_WIDTH = 880;
         const BASE_HEIGHT = 520;
-        const CHART_ASPECT = 5 / 3;
+        const CHART_ASPECT = 20 / 9;
         const PAD = { left: 64, right: 30, top: 44, bottom: 58 };
         const sceneView = { width: BASE_WIDTH, height: BASE_HEIGHT };
-        const vtView = { width: 400, height: 240 };
-        const stView = { width: 400, height: 240 };
+        const vtView = { width: 400, height: 180 };
+        const stView = { width: 400, height: 180 };
 
         const sceneCanvas = document.getElementById('scene');
         const sctx = sceneCanvas.getContext('2d');
