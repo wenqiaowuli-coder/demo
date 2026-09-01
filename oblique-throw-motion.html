@@ -185,12 +185,12 @@
         </div>
         <div class="charts-row">
             <section class="chart-panel">
-                <div class="group-title">合速度大小-时间图 (v-t)</div>
-                <canvas id="vtChart" role="img" aria-label="合速度大小随时间变化图像"></canvas>
+                <div class="group-title">速度分量-时间图 (vₓ、vᵧ-t)</div>
+                <canvas id="vtChart" role="img" aria-label="水平分速度与竖直分速度随时间变化图像"></canvas>
             </section>
             <section class="chart-panel">
-                <div class="group-title">合位移大小-时间图 (s-t)</div>
-                <canvas id="stChart" role="img" aria-label="合位移大小随时间变化图像"></canvas>
+                <div class="group-title">位移分量-时间图 (x、y-t)</div>
+                <canvas id="stChart" role="img" aria-label="水平位移与竖直位移随时间变化图像"></canvas>
             </section>
         </div>
         <div class="control-panel">
@@ -242,14 +242,15 @@
             <button id="btnReset" type="button">重置</button>
         </div>
         <div class="legend">
-            <span>🟢 水平分速度</span>
-            <span>🟠 竖直分速度</span>
+            <span>🟢 水平分速度 vₓ / 水平位移 x</span>
+            <span>🟠 竖直分速度 vᵧ / 竖直位移 y</span>
             <span>🔵 合速度</span>
             <span>⚪ 抛体</span>
             <span>虚线：理论轨迹</span>
             <span>实线：已播放轨迹</span>
             <span style="color:#33ddcc">● 最高点</span>
             <span style="color:#66aaff">● 落地</span>
+            <span>＋表示向上/向右方向，－表示向下</span>
         </div>
     </main>
     <script>
@@ -307,13 +308,6 @@
         function apexHeight() { return v0yOf() * v0yOf() / (2 * g); }
         function velocityOf(time) { return { vx: v0xOf(), vy: v0yOf() - g * time }; }
         function currentPosition() { return { x: xOf(t), y: yOf(t) }; }
-        function speedOf(time) {
-            const v = velocityOf(time);
-            return Math.hypot(v.vx, v.vy);
-        }
-        function displacementMagnitude(time) {
-            return Math.hypot(xOf(time), yOf(time));
-        }
 
         function niceCeil(value) {
             if (!isFinite(value) || value <= 0) return 1;
@@ -552,7 +546,7 @@
             ctx.fillText('落地', point.x, point.y - 14);
         }
 
-        function drawChart(view, chartCtx, valueFn, yMin, yMax, unit, yLabel) {
+        function drawChart(view, chartCtx, seriesList, yMin, yMax, xLabel, yLabel) {
             const padL = 48, padR = 16, padT = 16, padB = 30;
             const plotW = view.width - padL - padR;
             const plotH = view.height - padT - padB;
@@ -606,76 +600,102 @@
             chartCtx.lineTo(padL + plotW, padT + plotH);
             chartCtx.stroke();
 
+            // v=0 参考线（有负值区间时）
+            if (yMin < 0 && yMax > 0) {
+                const py0 = yOfVal(0);
+                chartCtx.strokeStyle = '#7b8ea3';
+                chartCtx.lineWidth = 1.5;
+                chartCtx.beginPath();
+                chartCtx.moveTo(padL, py0);
+                chartCtx.lineTo(padL + plotW, py0);
+                chartCtx.stroke();
+            }
+
             chartCtx.fillStyle = '#8899aa';
             chartCtx.textAlign = 'left';
             chartCtx.fillText(yLabel, padL + 6, padT + 12);
             chartCtx.textAlign = 'right';
-            chartCtx.fillText('t/s', padL + plotW, view.height - 8);
+            chartCtx.fillText(xLabel, padL + plotW, view.height - 8);
 
             const samples = 120;
-            function pointAt(i) {
+            function pointAt(fn, i) {
                 const time = (i / samples) * tMax;
-                return { x: xOfTime(time), y: yOfVal(valueFn(time)) };
+                return { x: xOfTime(time), y: yOfVal(fn(time)) };
             }
 
-            // 完整理论曲线（背景虚线）
-            chartCtx.save();
-            chartCtx.strokeStyle = 'rgba(102, 170, 255, 0.55)';
-            chartCtx.lineWidth = 2;
-            chartCtx.setLineDash([7, 7]);
-            chartCtx.beginPath();
-            for (let i = 0; i <= samples; i++) {
-                const p = pointAt(i);
-                if (i === 0) chartCtx.moveTo(p.x, p.y);
-                else chartCtx.lineTo(p.x, p.y);
-            }
-            chartCtx.stroke();
-            chartCtx.restore();
-
-            // 已播放进度（实线）
             const currentIndex = Math.min(samples, Math.floor(samples * (tMax > 0 ? t / tMax : 0)));
-            chartCtx.strokeStyle = '#3388dd';
-            chartCtx.lineWidth = 2.5;
-            chartCtx.lineJoin = 'round';
-            chartCtx.beginPath();
-            for (let i = 0; i <= currentIndex; i++) {
-                const p = pointAt(i);
-                if (i === 0) chartCtx.moveTo(p.x, p.y);
-                else chartCtx.lineTo(p.x, p.y);
-            }
-            if (currentIndex < samples && tMax > 0) {
-                const pNow = { x: xOfTime(t), y: yOfVal(valueFn(t)) };
-                chartCtx.lineTo(pNow.x, pNow.y);
-            }
-            chartCtx.stroke();
-
-            // 播放头
             const pxNow = xOfTime(t);
-            const pyNow = yOfVal(valueFn(t));
+
+            seriesList.forEach((series, seriesIndex) => {
+                const { fn, color, dashColor, label, unit } = series;
+
+                // 完整理论曲线（背景虚线）
+                chartCtx.save();
+                chartCtx.strokeStyle = dashColor;
+                chartCtx.lineWidth = 2;
+                chartCtx.setLineDash([7, 7]);
+                chartCtx.beginPath();
+                for (let i = 0; i <= samples; i++) {
+                    const p = pointAt(fn, i);
+                    if (i === 0) chartCtx.moveTo(p.x, p.y);
+                    else chartCtx.lineTo(p.x, p.y);
+                }
+                chartCtx.stroke();
+                chartCtx.restore();
+
+                // 已播放进度（实线）
+                chartCtx.strokeStyle = color;
+                chartCtx.lineWidth = 2.5;
+                chartCtx.lineJoin = 'round';
+                chartCtx.beginPath();
+                for (let i = 0; i <= currentIndex; i++) {
+                    const p = pointAt(fn, i);
+                    if (i === 0) chartCtx.moveTo(p.x, p.y);
+                    else chartCtx.lineTo(p.x, p.y);
+                }
+                if (currentIndex < samples && tMax > 0) {
+                    const pNow = { x: pxNow, y: yOfVal(fn(t)) };
+                    chartCtx.lineTo(pNow.x, pNow.y);
+                }
+                chartCtx.stroke();
+
+                // 当前点
+                const pyNow = yOfVal(fn(t));
+                chartCtx.fillStyle = color;
+                chartCtx.beginPath();
+                chartCtx.arc(pxNow, pyNow, 4.5, 0, Math.PI * 2);
+                chartCtx.fill();
+                const valText = label + ' ' + fn(t).toFixed(1) + unit;
+                let lx = pxNow + 8;
+                let ly = pyNow - 10 + seriesIndex * 16;
+                if (lx > padL + plotW - 50) lx = pxNow - 54;
+                if (ly < padT + 8) ly = pyNow + 12 + seriesIndex * 16;
+                if (ly > padT + plotH - 4) ly = pyNow - 12 - seriesIndex * 8;
+                chartCtx.textAlign = 'left';
+                chartCtx.fillStyle = '#dde6f0';
+                chartCtx.fillText(valText, lx, ly);
+            });
+
+            // 播放头竖线（统一）
             chartCtx.strokeStyle = 'rgba(51, 136, 221, 0.4)';
             chartCtx.lineWidth = 1;
             chartCtx.beginPath();
             chartCtx.moveTo(pxNow, padT);
             chartCtx.lineTo(pxNow, padT + plotH);
             chartCtx.stroke();
-            chartCtx.fillStyle = '#ff5555';
-            chartCtx.beginPath();
-            chartCtx.arc(pxNow, pyNow, 4.5, 0, Math.PI * 2);
-            chartCtx.fill();
-            const valText = valueFn(t).toFixed(1) + unit;
-            let lx = pxNow + 7, ly = pyNow - 7;
-            if (lx > padL + plotW - 40) lx = pxNow - 44;
-            if (ly < padT + 10) ly = pyNow + 16;
-            chartCtx.textAlign = 'left';
-            chartCtx.fillStyle = '#dde6f0';
-            chartCtx.fillText(valText, lx, ly);
         }
 
         function drawCharts() {
-            const vMax = Math.max(10, Math.ceil(v0Meters() * 1.05 / 5) * 5);
-            const sMax = niceCeil(Math.max(displacementMagnitude(tEnd()), 5) * 1.05);
-            drawChart(vtView, vtCtx, speedOf, 0, vMax, ' m/s', 'v (m/s)');
-            drawChart(stView, stCtx, displacementMagnitude, 0, sMax, ' m', 's (m)');
+            const vMax = Math.max(5, Math.ceil(Math.max(v0xOf(), Math.abs(v0yOf())) * 1.05 / 5) * 5);
+            const sMax = niceCeil(Math.max(rangeMeters(), apexHeight()) * 1.05);
+            drawChart(vtView, vtCtx, [
+                { fn: v0xOf, color: '#33cc55', dashColor: 'rgba(51, 204, 85, 0.55)', label: 'vₓ', unit: ' m/s' },
+                { fn: (time) => v0yOf() - g * time, color: '#ff9933', dashColor: 'rgba(255, 153, 51, 0.55)', label: 'vᵧ', unit: ' m/s' }
+            ], -vMax, vMax, 't/s', 'v (m/s)');
+            drawChart(stView, stCtx, [
+                { fn: xOf, color: '#33cc55', dashColor: 'rgba(51, 204, 85, 0.55)', label: 'x', unit: ' m' },
+                { fn: yOf, color: '#ff9933', dashColor: 'rgba(255, 153, 51, 0.55)', label: 'y', unit: ' m' }
+            ], 0, sMax, 't/s', 's (m)');
         }
 
         function render() {
