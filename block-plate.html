@@ -6,12 +6,13 @@
     <!-- 
     文件描述：板块运动演示（完整版）
     物理内容：展示物块 A 在板块 B 上的相对滑动、共速、滑出及摩擦生热等完整过程
-    适用场景：高中物理“板块模型”教学，可调节 B 的初速度、动摩擦因数与板长 L，
-              实时显示 v-t 图、相对位移、摩擦生热等数据，支持物块滑出后继续运动的情景。
+    适用场景：高中物理“板块模型”教学，板 B 固定静止（v₀B = 0），可调物块 A 初速度、
+              动摩擦因数与板长 L，实时显示 v-t 图、相对位移、摩擦生热等数据，
+              支持物块滑出后继续运动的情景。
     风格：与斜抛运动演示网页（oblique-throw-motion.html）统一的深色系列。
     -->
     <title>板块运动演示｜高中物理</title>
-    <meta name="description" content="高中物理板块模型教学演示：物块 A 在板块 B 上相对滑动，可调 B 初速度、动摩擦因数与板长，实时显示 v-t 图、共速时刻、相对位移、是否滑出与摩擦生热。">
+    <meta name="description" content="高中物理板块模型教学演示：板 B 静止，物块 A 以可调初速度滑上板 B，可调动摩擦因数与板长，实时显示 v-t 图、共速时刻、相对位移、是否滑出与摩擦生热。">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -186,9 +187,9 @@
             <section class="param-group" aria-labelledby="parameterTitle">
                 <div class="group-title" id="parameterTitle">参数设定</div>
                 <div class="param-row">
-                    <label for="v0B">B 初速度 v₀ᴮ</label>
-                    <input id="v0B" type="range" min="0" max="10" value="0" step="0.5">
-                    <div class="val" id="v0BVal">0.0 m/s</div>
+                    <label for="v0A">A 初速度 v₀A</label>
+                    <input id="v0A" type="range" min="2" max="20" value="12" step="0.5">
+                    <div class="val" id="v0AVal">12.0 m/s</div>
                 </div>
                 <div class="param-row">
                     <label for="mu">动摩擦 μ</label>
@@ -255,11 +256,11 @@
         const graphCanvas = document.getElementById('graphCanvas');
         const gctx = graphCanvas.getContext('2d');
 
-        const elV0B   = document.getElementById('v0B');
+        const elVA0   = document.getElementById('v0A');
         const elMu    = document.getElementById('mu');
         const elL     = document.getElementById('plateLen');
         const elTs    = document.getElementById('ts');
-        const elV0BVal = document.getElementById('v0BVal');
+        const elVA0Val = document.getElementById('v0AVal');
         const elMuVal  = document.getElementById('muVal');
         const elLVal   = document.getElementById('plateLenVal');
         const elTsVal  = document.getElementById('tsVal');
@@ -288,7 +289,7 @@
         const PAD_X = 90;          // 板块左缘固定屏幕位置
         const PAD_RIGHT = 70;      // 右侧留白
         const PAD_BOTTOM = 58;     // 地面距画布底部
-        const PLATE_H = 84;        // 板厚度（像素，装饰）
+        const PLATE_H = 52;        // 板厚度（像素，轻薄长板形态）
         const BLOCK_H = 68;        // 物块高度（像素）
 
         // 自适应比例：板长 L 占据画面主要宽度（约 75%），不固定死像素
@@ -299,8 +300,8 @@
         // ========== 物理参数 ==========
         const P = {
             mA: 2, mB: 4,          // kg，用于相对位移/热量计算
-            v0A: 12,               // m/s
-            v0B: 0,
+            v0A: 12,               // m/s（滑条可调 2–20 m/s）
+            v0B: 0,                // m/s（固定为 0，板 B 静止）
             mu: 0.2,
             L: 6,                  // B 长度 m（滑条可调 2–10 m）
         };
@@ -418,16 +419,14 @@
                 ctx.stroke();
             }
 
-            // 板块标签
+            // 板块标签（薄板：两行紧凑标注）
             ctx.fillStyle = '#fff';
-            ctx.font = 'bold 13px system-ui';
+            ctx.font = 'bold 12px system-ui';
             ctx.textAlign = 'center';
-            ctx.fillText('板块 B', (bLeft + bRight) / 2, bTop + 24);
+            ctx.fillText('板块 B', (bLeft + bRight) / 2, bTop + 20);
             ctx.fillStyle = '#ffddaa';
-            ctx.font = '11px system-ui';
-            ctx.fillText(`vᵦ = ${drawB.v.toFixed(1)} m/s`, (bLeft + bRight) / 2, bTop + 42);
-            ctx.fillStyle = '#ffcc88';
-            ctx.fillText(`L = ${P.L.toFixed(1)} m`, (bLeft + bRight) / 2, bBot - 8);
+            ctx.font = '10px system-ui';
+            ctx.fillText(`vᵦ = ${drawB.v.toFixed(1)} m/s · L = ${P.L.toFixed(1)} m`, (bLeft + bRight) / 2, bTop + 38);
 
             // 物块 A（宽度 = 板长 28%，比例协调）
             const blockWm = P.L * 0.28;
@@ -782,7 +781,7 @@
             state = 'running';
             btnStart.disabled = true;
             btnReset.disabled = false;
-            elV0B.disabled = true;
+            elVA0.disabled = true;
             elMu.disabled = true;
             elL.disabled = true;
             elTs.disabled = true;
@@ -804,13 +803,13 @@
             velHist = [];
             slideOffTriggered = false;
 
-            P.v0A = 12;
-            P.v0B = parseFloat(elV0B.value) || 0;
+            P.v0A = parseFloat(elVA0.value) || 12;
+            P.v0B = 0;
             P.mu  = parseFloat(elMu.value) / 100;
             P.L   = parseFloat(elL.value) || 6;
             timeScale = parseFloat(elTs.value) / 10;
 
-            elV0BVal.textContent = P.v0B.toFixed(1) + ' m/s';
+            elVA0Val.textContent = P.v0A.toFixed(1) + ' m/s';
             elMuVal.textContent = P.mu.toFixed(2);
             elLVal.textContent = P.L.toFixed(1) + ' m';
             elTsVal.textContent = timeScale.toFixed(1) + '×';
@@ -821,7 +820,7 @@
             elState.textContent = '待开始';
             elState.style.color = '#99aabb';
             elStatus.textContent = '';
-            elV0B.disabled = false;
+            elVA0.disabled = false;
             elMu.disabled = false;
             elL.disabled = false;
             elTs.disabled = false;
@@ -839,11 +838,11 @@
         }
 
         // ========== 事件绑定 ==========
-        elV0B.addEventListener('input', () => {
-            elV0BVal.textContent = parseFloat(elV0B.value).toFixed(1) + ' m/s';
+        elVA0.addEventListener('input', () => {
+            P.v0A = parseFloat(elVA0.value);
+            elVA0Val.textContent = P.v0A.toFixed(1) + ' m/s';
             if (state === 'idle') {
-                P.v0B = parseFloat(elV0B.value);
-                elVB.textContent = P.v0B.toFixed(2) + ' m/s';
+                elVA.textContent = P.v0A.toFixed(2) + ' m/s';
                 updateDataPanel();
                 const drawA = { x: 0, v: P.v0A, onPlate: true };
                 const drawB = { x: 0, v: P.v0B };
