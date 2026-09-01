@@ -290,7 +290,7 @@
         const PAD_RIGHT = 70;      // 右侧留白
         const PAD_BOTTOM = 58;     // 地面距画布底部
         const PLATE_H = 40;        // 板厚度（像素，轻薄长板形态）
-        const BLOCK_H = 68;        // 物块高度（像素）
+        const BLOCK_H = 54;        // 物块高度（像素，较原 68px 下降 20%）
 
         // 自适应比例：板长 L 占据画面主要宽度（约 75%），不固定死像素
         function plateScale() {
@@ -456,8 +456,8 @@
             ctx.textAlign = 'center';
             ctx.fillText(`板块 B · vᵦ = ${drawB.v.toFixed(1)} m/s · L = ${P.L.toFixed(1)} m`, (bLeft + bRight) / 2, bTop + 25);
 
-            // 物块 A（宽度 = 板长 24%，比例协调）
-            const blockWm = P.L * 0.24;
+            // 物块 A（宽度 = 板长 12%，较上一版再缩短一半，比例协调）
+            const blockWm = P.L * 0.12;
             const blockW = blockWm * s;
 
             if (drawA.onPlate) {
@@ -481,12 +481,12 @@
                 ctx.strokeRect(aLeft, aTop, blockW, aBot - aTop);
 
                 ctx.fillStyle = '#fff';
-                ctx.font = 'bold 12px system-ui';
+                ctx.font = 'bold 11px system-ui';
                 ctx.textAlign = 'center';
-                ctx.fillText('物块 A', aLeft + blockW / 2, aTop + 22);
+                ctx.fillText('物块 A', aLeft + blockW / 2, aTop + 19);
                 ctx.fillStyle = '#cceaff';
-                ctx.font = '11px system-ui';
-                ctx.fillText(`vₐ = ${drawA.v.toFixed(1)} m/s`, aLeft + blockW / 2, aTop + 40);
+                ctx.font = '10px system-ui';
+                ctx.fillText(`${drawA.v.toFixed(1)} m/s`, aLeft + blockW / 2, aTop + 37);
             } else {
                 // 滑出后：A 以小圆点在地面继续显示（超出右缘时贴边）
                 const ax = Math.min(SX(drawA.x), view.width - 28);
