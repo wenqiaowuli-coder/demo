@@ -5,14 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- 
     文件描述：板块运动演示（完整版）
-    物理内容：展示物块 A 在板块 B 上的相对滑动、共速、滑出及摩擦生热等完整过程
+    物理内容：展示物块 A 在板块 B 上的相对滑动、共速、滑出及摩擦生热等完整过程，
+              双摩擦系数建模（μ₁ = A-B 之间，μ₂ = B-地面之间，μ₂ 默认 0）。
     适用场景：高中物理“板块模型”教学，板 B 固定静止（v₀B = 0），可调物块 A 初速度、
-              动摩擦因数与板长 L，实时显示 v-t 图、相对位移、摩擦生热等数据，
+              双动摩擦因数与板长 L，实时显示 v-t 图、相对位移、摩擦生热等数据，
               支持物块滑出后继续运动的情景。
     风格：与斜抛运动演示网页（oblique-throw-motion.html）统一的深色系列。
     -->
     <title>板块运动演示｜高中物理</title>
-    <meta name="description" content="高中物理板块模型教学演示：板 B 静止，物块 A 以可调初速度滑上板 B，可调动摩擦因数与板长，实时显示 v-t 图、共速时刻、相对位移、是否滑出与摩擦生热。">
+    <meta name="description" content="高中物理板块模型教学演示：板 B 静止，物块 A 以可调初速度滑上板 B，可调 A-B 与 B-地面双动摩擦因数及板长，实时显示 v-t 图、共速时刻、相对位移、是否滑出与总摩擦生热。">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -192,9 +193,14 @@
                     <div class="val" id="v0AVal">12.0 m/s</div>
                 </div>
                 <div class="param-row">
-                    <label for="mu">动摩擦 μ</label>
+                    <label for="mu">A-B 摩擦 μ₁</label>
                     <input id="mu" type="range" min="5" max="50" value="20" step="1">
                     <div class="val" id="muVal">0.20</div>
+                </div>
+                <div class="param-row">
+                    <label for="mu2">B-地摩擦 μ₂</label>
+                    <input id="mu2" type="range" min="0" max="50" value="0" step="1">
+                    <div class="val" id="mu2Val">0.00</div>
                 </div>
                 <div class="param-row">
                     <label for="plateLen">板长 L</label>
@@ -232,7 +238,7 @@
             <div class="data-card"><span>共速后速度</span><div class="num" id="dVFinal">—</div></div>
             <div class="data-card"><span>相对位移（滑动阶段）</span><div class="num" id="dRelDisp">—</div></div>
             <div class="data-card"><span>是否滑出</span><div class="num" id="dSlideOff">—</div></div>
-            <div class="data-card"><span>摩擦生热</span><div class="num" id="dHeat">—</div></div>
+            <div class="data-card"><span>摩擦生热（总）</span><div class="num" id="dHeat">—</div></div>
         </div>
         <div class="actions">
             <button id="btnStart" type="button">开始</button>
@@ -258,10 +264,12 @@
 
         const elVA0   = document.getElementById('v0A');
         const elMu    = document.getElementById('mu');
+        const elMu2   = document.getElementById('mu2');
         const elL     = document.getElementById('plateLen');
         const elTs    = document.getElementById('ts');
         const elVA0Val = document.getElementById('v0AVal');
         const elMuVal  = document.getElementById('muVal');
+        const elMu2Val = document.getElementById('mu2Val');
         const elLVal   = document.getElementById('plateLenVal');
         const elTsVal  = document.getElementById('tsVal');
         const elVA   = document.getElementById('dVA');
@@ -302,68 +310,104 @@
             mA: 2, mB: 4,          // kg，用于相对位移/热量计算
             v0A: 12,               // m/s（滑条可调 2–20 m/s）
             v0B: 0,                // m/s（固定为 0，板 B 静止）
-            mu: 0.2,
+            mu: 0.2,               // μ₁：A-B 间动摩擦因数（滑条 0.05–0.50）
+            mu2: 0,                // μ₂：B-地面间动摩擦因数（滑条 0–0.50，默认 0）
             L: 6,                  // B 长度 m（滑条可调 2–10 m）
         };
 
-        // ========== 物理计算（动量守恒 + 滑动阶段建模） ==========
-        // 滑动阶段：A 减速 aA = -μg，B 加速 aB = +μg·mA/mB
-        // 未滑出：共速 v共 = mA·v0A/(mA+mB)（动量守恒，v0B=0），共速后一起匀速
-        // 滑出：相对位移 S_rel(t) 超过板长 L 时 A 滑出，之后两者以各自速度匀速
+        // ========== 物理计算（双摩擦：μ₁ = A-B，μ₂ = B-地面） ==========
+        // 滑动阶段：A 减速 aA = μ₁g；B 受 A 摩擦（向前 μ₁mA·g）与地面摩擦（向后 μ₂(mA+mB)·g）。
+        //   μ₁mA > μ₂(mA+mB)：B 加速 aB = [μ₁mA − μ₂(mA+mB)]g/mB；
+        //   否则 B 保持静止（A 在静止板上滑动）。
+        // 未滑出：共速后 μ₂=0 一起匀速；μ₂>0 一起匀减速 μ₂g 至停止（μ₂>0 时动量不守恒，用运动学）。
+        // 滑出（S_rel 达 L）：A 在地面受 μ₂m_A·g、B 受 μ₂m_B·g 各自减速（μ₂=0 则各自匀速）。
         function physics() {
-            const aA = P.mu * g;                      // A 减速度大小
-            const aB = P.mu * g * P.mA / P.mB;        // B 加速度
-            const aRel = aA + aB;                     // 相对减速度
-            const tCommon = P.v0A / aRel;             // 达到共速所需时间
-            const vCommon = P.mA * P.v0A / (P.mA + P.mB); // 共速速度（动量守恒，必不为零）
-            const sRelCommon = 0.5 * P.v0A * tCommon; // 滑动阶段相对位移总量
-            const willSlideOff = sRelCommon > P.L;
+            const mu1 = P.mu, mu2 = P.mu2;
+            const aA = mu1 * g;                                   // A 减速度
+            const bMoved = mu1 * P.mA > mu2 * (P.mA + P.mB) + 1e-12; // B 能否被带动
+            const aB = bMoved ? (mu1 * P.mA - mu2 * (P.mA + P.mB)) * g / P.mB : 0;
+            const aRel = aA + aB;                                 // 相对减速度
+
+            const t1 = P.v0A / aRel;                              // 滑动阶段时长（共速或 A 停止）
+            const vCommon = aB * t1;                              // 共速速度（B 静止时为 0）
+            const sRel1 = 0.5 * P.v0A * t1;                       // 滑动阶段相对位移总量
+            const willSlideOff = sRel1 > P.L;
+
             let tOff = 0, vAOff = 0, vBOff = 0;
             if (willSlideOff) {
-                // S_rel(t) = v0A·t - ½aRel·t² = L 的第一个根
+                // S_rel(t) = v0A·t − ½aRel·t² = L 的第一个根
                 tOff = (P.v0A - Math.sqrt(Math.max(0, P.v0A * P.v0A - 2 * aRel * P.L))) / aRel;
-                vAOff = P.v0A - aA * tOff;            // 滑出瞬间 A 的速度（此后匀速）
-                vBOff = aB * tOff;                    // 滑出瞬间 B 的速度（此后匀速）
+                vAOff = P.v0A - aA * tOff;
+                vBOff = aB * tOff;
             }
-            const heat = P.mu * P.mA * g * Math.min(sRelCommon, P.L); // Q = f·S_相对(实际滑动段)
-            return { aA, aB, aRel, tCommon, vCommon, sRelCommon, willSlideOff, tOff, vAOff, vBOff, heat };
+
+            // 阶段 1（滑动段）结束时刻的位移：滑出时以 tOff 计，未滑出时以 t1（共速/A 停）计
+            const xB1 = willSlideOff ? 0.5 * aB * tOff * tOff : 0.5 * aB * t1 * t1;
+            const xA1 = xB1 + (willSlideOff ? P.L : sRel1);
+
+            // 总生热 = A-B 摩擦生热 + 地面摩擦生热
+            const Q1 = mu1 * P.mA * g * Math.min(sRel1, P.L);
+            let Q2 = 0;
+            if (mu2 > 0) {
+                Q2 += mu2 * (P.mA + P.mB) * g * xB1;              // 滑动阶段（A 压在 B 上）
+                if (willSlideOff) {
+                    Q2 += 0.5 * P.mB * vBOff * vBOff;             // 滑出后 B 滑行至停
+                    Q2 += 0.5 * P.mA * vAOff * vAOff;             // 滑出后 A 在地面滑行至停
+                } else if (bMoved) {
+                    Q2 += 0.5 * (P.mA + P.mB) * vCommon * vCommon; // 共速后共同减速至停
+                }
+                // B 静止且 A 停在板上：无相对地面滑移，无地面生热
+            }
+            return { mu1, mu2, aA, aB, aRel, bMoved, t1, vCommon, sRel1, willSlideOff, tOff, vAOff, vBOff, xB1, xA1, heat: Q1 + Q2 };
         }
 
         // 指定时刻 t 的速度
         function velocities(t) {
             const ph = physics();
+            if (t <= ph.t1) {
+                return { vA: Math.max(0, P.v0A - ph.aA * t), vB: ph.aB * t, trans: false, off: false, stopped: false };
+            }
+            const dt = t - ph.t1;
+            const dec = ph.mu2 * g;
             if (ph.willSlideOff) {
-                if (t < ph.tOff) {
-                    return { vA: P.v0A - ph.aA * t, vB: ph.aB * t, trans: false, off: false };
-                }
-                // 滑出后：A、B 各自匀速，两线不再汇合
-                return { vA: ph.vAOff, vB: ph.vBOff, trans: false, off: true };
+                // 滑出后：A、B 各自在地面摩擦下减速（μ₂=0 则匀速），两线不汇合
+                return {
+                    vA: Math.max(0, ph.vAOff - dec * dt),
+                    vB: Math.max(0, ph.vBOff - dec * dt),
+                    trans: false, off: true, stopped: false,
+                };
             }
-            if (t >= ph.tCommon) {
-                return { vA: ph.vCommon, vB: ph.vCommon, trans: true, off: false };
+            if (!ph.bMoved) {
+                // B 静止且 A 停在板上
+                return { vA: 0, vB: 0, trans: true, off: false, stopped: 'plate' };
             }
-            return { vA: P.v0A - ph.aA * t, vB: ph.aB * t, trans: false, off: false };
+            const vNow = Math.max(0, ph.vCommon - dec * dt);
+            return { vA: vNow, vB: vNow, trans: true, off: false, stopped: ph.mu2 > 0 && vNow <= 0 ? 'together' : false };
         }
 
-        // 指定时刻 t 的位置（含滑出前后两阶段）
+        // 指定时刻 t 的位置（含滑出/共速后各阶段）
         function positions(t) {
             const ph = physics();
-            const tEnd1 = ph.willSlideOff ? ph.tOff : ph.tCommon;
-            let bX, aX, onPlate;
-            if (t <= tEnd1) {
-                bX = 0.5 * ph.aB * t * t;
-                aX = bX + (P.v0A * t - 0.5 * ph.aRel * t * t);
-                onPlate = true;
-            } else if (ph.willSlideOff) {
-                bX = 0.5 * ph.aB * tEnd1 * tEnd1 + ph.vBOff * (t - tEnd1);
-                aX = 0.5 * ph.aB * tEnd1 * tEnd1 + P.L + ph.vAOff * (t - tEnd1);
-                onPlate = false;
-            } else {
-                bX = 0.5 * ph.aB * tEnd1 * tEnd1 + ph.vCommon * (t - tEnd1);
-                aX = bX + ph.sRelCommon;
-                onPlate = true;
+            if (t <= ph.t1) {
+                const bX = 0.5 * ph.aB * t * t;
+                const sRel = Math.max(0, P.v0A * t - 0.5 * ph.aRel * t * t);
+                return { bX, aX: bX + sRel, onPlate: true };
             }
-            return { bX, aX, onPlate };
+            const dt = t - ph.t1;
+            const dec = ph.mu2 * g;
+            if (ph.willSlideOff) {
+                const tauA = ph.mu2 > 0 ? Math.min(dt, ph.vAOff / dec) : dt;
+                const tauB = ph.mu2 > 0 ? Math.min(dt, ph.vBOff / dec) : dt;
+                const bX = ph.xB1 + ph.vBOff * tauB - 0.5 * dec * tauB * tauB;
+                const aX = ph.xA1 + ph.vAOff * tauA - 0.5 * dec * tauA * tauA;
+                return { bX, aX, onPlate: false };
+            }
+            if (!ph.bMoved) {
+                return { bX: 0, aX: ph.xA1, onPlate: true };      // A 停在静止板上
+            }
+            const tau = ph.mu2 > 0 ? Math.min(dt, ph.vCommon / dec) : dt;
+            const bX = ph.xB1 + ph.vCommon * tau - 0.5 * dec * tau * tau;
+            return { bX, aX: bX + ph.sRel1, onPlate: true };
         }
 
         // ========== 状态 ==========
@@ -584,19 +628,19 @@
                 gctx.fillText(v.toFixed(0), padL - 5, y + 3);
             }
 
-            // 共速竖线（未滑出时） / 滑出转折竖线（滑出时）
-            if (!ph.willSlideOff && ph.tCommon <= tMax) {
+            // 共速竖线（未滑出时，含 A 停在静止板上情形） / 滑出转折竖线（滑出时）
+            if (!ph.willSlideOff && ph.t1 <= tMax) {
                 gctx.strokeStyle = 'rgba(255,255,255,0.18)';
                 gctx.setLineDash([4, 4]);
                 gctx.beginPath();
-                gctx.moveTo(TX(ph.tCommon), padT);
-                gctx.lineTo(TX(ph.tCommon), padT + plotH);
+                gctx.moveTo(TX(ph.t1), padT);
+                gctx.lineTo(TX(ph.t1), padT + plotH);
                 gctx.stroke();
                 gctx.setLineDash([]);
-                gctx.fillStyle = '#ffaa22';
+                gctx.fillStyle = ph.bMoved ? '#ffaa22' : '#33dd66';
                 gctx.font = '10px system-ui';
                 gctx.textAlign = 'center';
-                gctx.fillText('共速 ' + ph.vCommon.toFixed(1), TX(ph.tCommon), padT + 10);
+                gctx.fillText(ph.bMoved ? '共速 ' + ph.vCommon.toFixed(1) : 'A 停', TX(ph.t1), padT + 10);
             } else if (ph.willSlideOff && ph.tOff <= tMax) {
                 gctx.strokeStyle = 'rgba(255,102,68,0.35)';
                 gctx.setLineDash([4, 4]);
@@ -689,9 +733,8 @@
                 elStatus.textContent = '⚠ 物块 A 已滑出板块 B，两者以各自速度继续运动...';
             }
 
-            // 结束条件：共速/滑出转折后再稳定 3 秒 或 超过 15 秒
-            const tEnd1 = ph.willSlideOff ? ph.tOff : ph.tCommon;
-            if (simT - tEnd1 > 3) {
+            // 结束条件：滑出/共速（或 A 停）后 3 秒 或 超过 15 秒
+            if (simT - ph.t1 > 3) {
                 endSim();
                 return;
             }
@@ -713,12 +756,18 @@
             elVA.textContent  = vel.vA.toFixed(2) + ' m/s';
             elVB.textContent  = vel.vB.toFixed(2) + ' m/s';
             elVR.textContent  = Math.abs(vel.vA - vel.vB).toFixed(2) + ' m/s';
-            if (vel.trans) {
-                elState.textContent = '共速一起运动';
-                elState.style.color = '#ffaa22';
-            } else if (!onPlate) {
+            if (vel.off) {
                 elState.textContent = 'A 已滑出（各自运动）';
                 elState.style.color = '#ff6644';
+            } else if (vel.stopped === 'plate') {
+                elState.textContent = 'A 停在板上（B 静止）';
+                elState.style.color = '#33dd66';
+            } else if (vel.stopped === 'together') {
+                elState.textContent = '共同停止';
+                elState.style.color = '#aab';
+            } else if (vel.trans) {
+                elState.textContent = '共速一起运动';
+                elState.style.color = '#ffaa22';
             } else {
                 elState.textContent = 'A 在 B 上滑动';
                 elState.style.color = '#3399ff';
@@ -747,9 +796,19 @@
             elState.style.color = '#aab';
             btnStart.disabled = true;
             btnReset.disabled = false;
-            elStatus.textContent = ph.willSlideOff
-                ? `物块 A 已滑出板块（t = ${ph.tOff.toFixed(2)} s），A、B 分别以 ${ph.vAOff.toFixed(2)} m/s 与 ${ph.vBOff.toFixed(2)} m/s 匀速运动。`
-                : `物块 A 与板块 B 达到共同速度 ${ph.vCommon.toFixed(2)} m/s，一起匀速运动。`;
+            let msg;
+            if (ph.willSlideOff) {
+                msg = ph.mu2 > 0
+                    ? `物块 A 于 t = ${ph.tOff.toFixed(2)} s 滑出板块，随后 A、B 均在地面摩擦下减速停止。`
+                    : `物块 A 于 t = ${ph.tOff.toFixed(2)} s 滑出板块，A、B 分别以 ${ph.vAOff.toFixed(2)} m/s 与 ${ph.vBOff.toFixed(2)} m/s 匀速运动。`;
+            } else if (!ph.bMoved) {
+                msg = `地面摩擦足够大，B 保持静止；物块 A 在板上滑行 ${ph.sRel1.toFixed(2)} m 后停下。`;
+            } else if (ph.mu2 > 0) {
+                msg = `两者于 t = ${ph.t1.toFixed(2)} s 达到共同速度 ${ph.vCommon.toFixed(2)} m/s，随后一起匀减速停止。`;
+            } else {
+                msg = `物块 A 与板块 B 达到共同速度 ${ph.vCommon.toFixed(2)} m/s，一起匀速运动。`;
+            }
+            elStatus.textContent = msg;
         }
 
         // ========== 自适应尺寸 ==========
@@ -778,9 +837,9 @@
         // ========== 数据面板 ==========
         function updateDataPanel() {
             const ph = physics();
-            elTEnd.textContent = ph.willSlideOff ? '—' : ph.tCommon.toFixed(2) + ' s';
+            elTEnd.textContent = ph.willSlideOff ? '—' : ph.t1.toFixed(2) + ' s';
             elVFin.textContent = ph.willSlideOff ? '—' : ph.vCommon.toFixed(2) + ' m/s';
-            elRel.textContent  = ph.sRelCommon.toFixed(2) + ' m';
+            elRel.textContent  = ph.sRel1.toFixed(2) + ' m';
             elSlide.textContent = ph.willSlideOff ? '✓ 滑出' : '✗ 未滑出';
             elSlide.style.color = ph.willSlideOff ? '#ff6644' : '#33dd66';
             elHeat.textContent = ph.heat.toFixed(2) + ' J';
@@ -806,6 +865,7 @@
             btnReset.disabled = false;
             elVA0.disabled = true;
             elMu.disabled = true;
+            elMu2.disabled = true;
             elL.disabled = true;
             elTs.disabled = true;
 
@@ -829,11 +889,13 @@
             P.v0A = parseFloat(elVA0.value) || 12;
             P.v0B = 0;
             P.mu  = parseFloat(elMu.value) / 100;
+            P.mu2 = parseFloat(elMu2.value) / 100;
             P.L   = parseFloat(elL.value) || 6;
             timeScale = parseFloat(elTs.value) / 10;
 
             elVA0Val.textContent = P.v0A.toFixed(1) + ' m/s';
             elMuVal.textContent = P.mu.toFixed(2);
+            elMu2Val.textContent = P.mu2.toFixed(2);
             elLVal.textContent = P.L.toFixed(1) + ' m';
             elTsVal.textContent = timeScale.toFixed(1) + '×';
 
@@ -845,6 +907,7 @@
             elStatus.textContent = '';
             elVA0.disabled = false;
             elMu.disabled = false;
+            elMu2.disabled = false;
             elL.disabled = false;
             elTs.disabled = false;
 
@@ -877,6 +940,14 @@
         elMu.addEventListener('input', () => {
             P.mu = parseFloat(elMu.value) / 100;
             elMuVal.textContent = P.mu.toFixed(2);
+            if (state === 'idle') {
+                updateDataPanel();
+            }
+        });
+
+        elMu2.addEventListener('input', () => {
+            P.mu2 = parseFloat(elMu2.value) / 100;
+            elMu2Val.textContent = P.mu2.toFixed(2);
             if (state === 'idle') {
                 updateDataPanel();
             }
