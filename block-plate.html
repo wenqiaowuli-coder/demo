@@ -599,8 +599,16 @@
             }
 
             const ph = physics();
-            const tEnd1 = ph.willSlideOff ? ph.tOff : ph.tCommon;
-            const tMax = Math.max(tEnd1 + 0.5, 5, ...velHist.map(p => p.t));
+            // 预估完整观测时长：坐标轴从一开始即覆盖全程，播放头同步不跳变
+            let tPred;
+            if (ph.willSlideOff) {
+                tPred = ph.mu2 > 0 ? ph.t1 + Math.max(ph.vAOff, ph.vBOff) / (ph.mu2 * g) + 2 : ph.t1 + 6;
+            } else if (!ph.bMoved) {
+                tPred = ph.t1 + 2;
+            } else {
+                tPred = ph.mu2 > 0 ? ph.t1 + ph.vCommon / (ph.mu2 * g) + 2 : ph.t1 + 6;
+            }
+            const tMax = Math.max(tPred, 6, ...velHist.map(p => p.t));
             const vMax = Math.max(P.v0A, 1) * 1.25;
 
             const TX = t => padL + (t / tMax) * plotW;
@@ -733,12 +741,13 @@
                 elStatus.textContent = '⚠ 物块 A 已滑出板块 B，两者以各自速度继续运动...';
             }
 
-            // 结束条件：滑出/共速（或 A 停）后 3 秒 或 超过 15 秒
-            if (simT - ph.t1 > 3) {
+            // 结束条件：转折后仍在运动则再观察 6 秒、已停止再观察 2 秒；总时长上限 30 秒
+            const stillMoving = vel.vA > 0.001 || vel.vB > 0.001;
+            if (simT - ph.t1 > (stillMoving ? 6 : 2)) {
                 endSim();
                 return;
             }
-            if (simT > 15) {
+            if (simT > 30) {
                 endSim();
                 return;
             }
