@@ -230,7 +230,7 @@
         <div class="data-row">
             <div class="data-card"><span>共速时刻</span><div class="num" id="dTEnd">—</div></div>
             <div class="data-card"><span>共速后速度</span><div class="num" id="dVFinal">—</div></div>
-            <div class="data-card"><span>A 相对 B 位移</span><div class="num" id="dRelDisp">—</div></div>
+            <div class="data-card"><span>相对位移（滑动阶段）</span><div class="num" id="dRelDisp">—</div></div>
             <div class="data-card"><span>是否滑出</span><div class="num" id="dSlideOff">—</div></div>
             <div class="data-card"><span>摩擦生热</span><div class="num" id="dHeat">—</div></div>
         </div>
@@ -244,7 +244,7 @@
             <span>🟧 板块 B</span>
             <span style="color:#3399ff">— vₐ 蓝线</span>
             <span style="color:#ff9933">— vᵦ 橙线</span>
-            <span>虚线：共速时刻</span>
+            <span>虚线：共速/滑出时刻</span>
         </div>
     </main>
 
@@ -289,7 +289,7 @@
         const PAD_X = 90;          // 板块左缘固定屏幕位置
         const PAD_RIGHT = 70;      // 右侧留白
         const PAD_BOTTOM = 58;     // 地面距画布底部
-        const PLATE_H = 52;        // 板厚度（像素，轻薄长板形态）
+        const PLATE_H = 40;        // 板厚度（像素，轻薄长板形态）
         const BLOCK_H = 68;        // 物块高度（像素）
 
         // 自适应比例：板长 L 占据画面主要宽度（约 75%），不固定死像素
@@ -306,33 +306,64 @@
             L: 6,                  // B 长度 m（滑条可调 2–10 m）
         };
 
-        // ========== 物理计算 ==========
+        // ========== 物理计算（动量守恒 + 滑动阶段建模） ==========
+        // 滑动阶段：A 减速 aA = -μg，B 加速 aB = +μg·mA/mB
+        // 未滑出：共速 v共 = mA·v0A/(mA+mB)（动量守恒，v0B=0），共速后一起匀速
+        // 滑出：相对位移 S_rel(t) 超过板长 L 时 A 滑出，之后两者以各自速度匀速
         function physics() {
-            const mu = P.mu;
-            const tTrans = Math.max(0, (P.v0A - P.v0B) / (mu * g));
-            const vFinal = P.v0A - mu * g * tTrans;
-            const relDisp = 0.5 * (P.v0A - P.v0B) * tTrans;
-            const heat = P.mu * g * Math.min(relDisp, relDisp); // Q = f * s_rel
-            return {
-                tTrans,
-                vFinal,
-                relDisp,
-                heat,
-                slideOff: relDisp > P.L,
-            };
+            const aA = P.mu * g;                      // A 减速度大小
+            const aB = P.mu * g * P.mA / P.mB;        // B 加速度
+            const aRel = aA + aB;                     // 相对减速度
+            const tCommon = P.v0A / aRel;             // 达到共速所需时间
+            const vCommon = P.mA * P.v0A / (P.mA + P.mB); // 共速速度（动量守恒，必不为零）
+            const sRelCommon = 0.5 * P.v0A * tCommon; // 滑动阶段相对位移总量
+            const willSlideOff = sRelCommon > P.L;
+            let tOff = 0, vAOff = 0, vBOff = 0;
+            if (willSlideOff) {
+                // S_rel(t) = v0A·t - ½aRel·t² = L 的第一个根
+                tOff = (P.v0A - Math.sqrt(Math.max(0, P.v0A * P.v0A - 2 * aRel * P.L))) / aRel;
+                vAOff = P.v0A - aA * tOff;            // 滑出瞬间 A 的速度（此后匀速）
+                vBOff = aB * tOff;                    // 滑出瞬间 B 的速度（此后匀速）
+            }
+            const heat = P.mu * P.mA * g * Math.min(sRelCommon, P.L); // Q = f·S_相对(实际滑动段)
+            return { aA, aB, aRel, tCommon, vCommon, sRelCommon, willSlideOff, tOff, vAOff, vBOff, heat };
         }
 
         // 指定时刻 t 的速度
         function velocities(t) {
             const ph = physics();
-            if (t >= ph.tTrans && ph.tTrans > 0) {
-                return { vA: ph.vFinal, vB: ph.vFinal, trans: true };
+            if (ph.willSlideOff) {
+                if (t < ph.tOff) {
+                    return { vA: P.v0A - ph.aA * t, vB: ph.aB * t, trans: false, off: false };
+                }
+                // 滑出后：A、B 各自匀速，两线不再汇合
+                return { vA: ph.vAOff, vB: ph.vBOff, trans: false, off: true };
             }
-            return {
-                vA: Math.max(P.v0A - P.mu * g * t, ph.tTrans > 0 ? ph.vFinal : P.v0A),
-                vB: P.v0B + P.mu * g * P.mA / P.mB * Math.min(t, ph.tTrans),
-                trans: false,
-            };
+            if (t >= ph.tCommon) {
+                return { vA: ph.vCommon, vB: ph.vCommon, trans: true, off: false };
+            }
+            return { vA: P.v0A - ph.aA * t, vB: ph.aB * t, trans: false, off: false };
+        }
+
+        // 指定时刻 t 的位置（含滑出前后两阶段）
+        function positions(t) {
+            const ph = physics();
+            const tEnd1 = ph.willSlideOff ? ph.tOff : ph.tCommon;
+            let bX, aX, onPlate;
+            if (t <= tEnd1) {
+                bX = 0.5 * ph.aB * t * t;
+                aX = bX + (P.v0A * t - 0.5 * ph.aRel * t * t);
+                onPlate = true;
+            } else if (ph.willSlideOff) {
+                bX = 0.5 * ph.aB * tEnd1 * tEnd1 + ph.vBOff * (t - tEnd1);
+                aX = 0.5 * ph.aB * tEnd1 * tEnd1 + P.L + ph.vAOff * (t - tEnd1);
+                onPlate = false;
+            } else {
+                bX = 0.5 * ph.aB * tEnd1 * tEnd1 + ph.vCommon * (t - tEnd1);
+                aX = bX + ph.sRelCommon;
+                onPlate = true;
+            }
+            return { bX, aX, onPlate };
         }
 
         // ========== 状态 ==========
@@ -419,17 +450,14 @@
                 ctx.stroke();
             }
 
-            // 板块标签（薄板：两行紧凑标注）
+            // 板块标签（薄板：单行紧凑标注）
             ctx.fillStyle = '#fff';
-            ctx.font = 'bold 12px system-ui';
+            ctx.font = 'bold 11px system-ui';
             ctx.textAlign = 'center';
-            ctx.fillText('板块 B', (bLeft + bRight) / 2, bTop + 20);
-            ctx.fillStyle = '#ffddaa';
-            ctx.font = '10px system-ui';
-            ctx.fillText(`vᵦ = ${drawB.v.toFixed(1)} m/s · L = ${P.L.toFixed(1)} m`, (bLeft + bRight) / 2, bTop + 38);
+            ctx.fillText(`板块 B · vᵦ = ${drawB.v.toFixed(1)} m/s · L = ${P.L.toFixed(1)} m`, (bLeft + bRight) / 2, bTop + 25);
 
-            // 物块 A（宽度 = 板长 28%，比例协调）
-            const blockWm = P.L * 0.28;
+            // 物块 A（宽度 = 板长 24%，比例协调）
+            const blockWm = P.L * 0.24;
             const blockW = blockWm * s;
 
             if (drawA.onPlate) {
@@ -527,8 +555,9 @@
             }
 
             const ph = physics();
-            const tMax = Math.max(ph.tTrans + 0.5, 5, ...velHist.map(p => p.t));
-            const vMax = Math.max(P.v0A, ph.vFinal, 1) * 1.25;
+            const tEnd1 = ph.willSlideOff ? ph.tOff : ph.tCommon;
+            const tMax = Math.max(tEnd1 + 0.5, 5, ...velHist.map(p => p.t));
+            const vMax = Math.max(P.v0A, 1) * 1.25;
 
             const TX = t => padL + (t / tMax) * plotW;
             const VY = v => padT + plotH - (v / vMax) * plotH;
@@ -555,19 +584,31 @@
                 gctx.fillText(v.toFixed(0), padL - 5, y + 3);
             }
 
-            // 共速竖线
-            if (ph.tTrans > 0 && ph.tTrans <= tMax) {
+            // 共速竖线（未滑出时） / 滑出转折竖线（滑出时）
+            if (!ph.willSlideOff && ph.tCommon <= tMax) {
                 gctx.strokeStyle = 'rgba(255,255,255,0.18)';
                 gctx.setLineDash([4, 4]);
                 gctx.beginPath();
-                gctx.moveTo(TX(ph.tTrans), padT);
-                gctx.lineTo(TX(ph.tTrans), padT + plotH);
+                gctx.moveTo(TX(ph.tCommon), padT);
+                gctx.lineTo(TX(ph.tCommon), padT + plotH);
                 gctx.stroke();
                 gctx.setLineDash([]);
-                gctx.fillStyle = '#8899aa';
+                gctx.fillStyle = '#ffaa22';
                 gctx.font = '10px system-ui';
                 gctx.textAlign = 'center';
-                gctx.fillText('共速', TX(ph.tTrans), padT + 10);
+                gctx.fillText('共速 ' + ph.vCommon.toFixed(1), TX(ph.tCommon), padT + 10);
+            } else if (ph.willSlideOff && ph.tOff <= tMax) {
+                gctx.strokeStyle = 'rgba(255,102,68,0.35)';
+                gctx.setLineDash([4, 4]);
+                gctx.beginPath();
+                gctx.moveTo(TX(ph.tOff), padT);
+                gctx.lineTo(TX(ph.tOff), padT + plotH);
+                gctx.stroke();
+                gctx.setLineDash([]);
+                gctx.fillStyle = '#ff8866';
+                gctx.font = '10px system-ui';
+                gctx.textAlign = 'center';
+                gctx.fillText('滑出', TX(ph.tOff), padT + 10);
             }
 
             // 曲线 A
@@ -640,23 +681,17 @@
 
             const ph = physics();
             const vel = velocities(simT);
+            const pos = positions(simT);
+            const onPlate = pos.onPlate;
 
-            // A 是否滑出 B
-            const relDispAtT = 0 <= ph.tTrans
-                ? (simT < ph.tTrans
-                    ? 0.5 * (P.v0A - P.v0B) * simT
-                    : ph.relDisp)
-                : 0;
-            const onPlate = ph.slideOff ? relDispAtT < P.L : true;
-
-            if (ph.slideOff && !onPlate && !slideOffTriggered) {
+            if (ph.willSlideOff && !onPlate && !slideOffTriggered) {
                 slideOffTriggered = true;
-                elStatus.textContent = '⚠ 物块 A 已滑出板块 B，继续在地面运动...';
+                elStatus.textContent = '⚠ 物块 A 已滑出板块 B，两者以各自速度继续运动...';
             }
 
-            // 结束条件：共速后稳定 3 秒 或 超过 15 秒
-            const bothMoving = vel.trans || (ph.tTrans > 0 && simT > ph.tTrans);
-            if (bothMoving && simT - ph.tTrans > 3) {
+            // 结束条件：共速/滑出转折后再稳定 3 秒 或 超过 15 秒
+            const tEnd1 = ph.willSlideOff ? ph.tOff : ph.tCommon;
+            if (simT - tEnd1 > 3) {
                 endSim();
                 return;
             }
@@ -665,20 +700,8 @@
                 return;
             }
 
-            // B 位置
-            const bX = ph.tTrans > 0
-                ? (simT < ph.tTrans
-                    ? P.v0B * simT + 0.5 * (P.mu * g * P.mA / P.mB) * simT * simT
-                    : P.v0B * ph.tTrans + 0.5 * (P.mu * g * P.mA / P.mB) * ph.tTrans * ph.tTrans + ph.vFinal * (simT - ph.tTrans))
-                : P.v0B * simT;
-
-            // A 位置
-            const aX = onPlate
-                ? bX + relDispAtT
-                : bX + (ph.slideOff ? ph.relDisp : relDispAtT);
-
-            const drawB = { x: bX, v: vel.vB };
-            const drawA = { x: aX, v: vel.vA, onPlate: onPlate };
+            const drawB = { x: pos.bX, v: vel.vB };
+            const drawA = { x: pos.aX, v: vel.vA, onPlate: onPlate };
             lastDraw = { drawA, drawB };
 
             drawScene(simT, drawA, drawB);
@@ -690,12 +713,12 @@
             elVA.textContent  = vel.vA.toFixed(2) + ' m/s';
             elVB.textContent  = vel.vB.toFixed(2) + ' m/s';
             elVR.textContent  = Math.abs(vel.vA - vel.vB).toFixed(2) + ' m/s';
-            if (ph.tTrans <= 0) {
-                elState.textContent = '无相对滑动';
-                elState.style.color = '#33dd66';
-            } else if (vel.trans) {
+            if (vel.trans) {
                 elState.textContent = '共速一起运动';
                 elState.style.color = '#ffaa22';
+            } else if (!onPlate) {
+                elState.textContent = 'A 已滑出（各自运动）';
+                elState.style.color = '#ff6644';
             } else {
                 elState.textContent = 'A 在 B 上滑动';
                 elState.style.color = '#3399ff';
@@ -710,11 +733,11 @@
             if (animId) { cancelAnimationFrame(animId); animId = null; }
 
             const ph = physics();
-            const bXFinal = P.v0B * ph.tTrans + 0.5 * (P.mu * g * P.mA / P.mB) * ph.tTrans * ph.tTrans + ph.vFinal * Math.max(0, simT - ph.tTrans);
-            const aXFinal = bXFinal + (ph.slideOff ? ph.relDisp : 0);
+            const pos = positions(simT);
+            const vel = velocities(simT);
 
-            const drawB = { x: bXFinal, v: ph.vFinal };
-            const drawA = { x: aXFinal, v: ph.vFinal, onPlate: !ph.slideOff };
+            const drawB = { x: pos.bX, v: vel.vB };
+            const drawA = { x: pos.aX, v: vel.vA, onPlate: pos.onPlate };
             lastDraw = { drawA, drawB };
 
             drawScene(simT, drawA, drawB);
@@ -724,9 +747,9 @@
             elState.style.color = '#aab';
             btnStart.disabled = true;
             btnReset.disabled = false;
-            elStatus.textContent = ph.slideOff
-                ? '物块 A 已滑出板块，两者以不同速度运动。'
-                : '物块 A 与板块 B 达到共同速度，一起匀速运动。';
+            elStatus.textContent = ph.willSlideOff
+                ? `物块 A 已滑出板块（t = ${ph.tOff.toFixed(2)} s），A、B 分别以 ${ph.vAOff.toFixed(2)} m/s 与 ${ph.vBOff.toFixed(2)} m/s 匀速运动。`
+                : `物块 A 与板块 B 达到共同速度 ${ph.vCommon.toFixed(2)} m/s，一起匀速运动。`;
         }
 
         // ========== 自适应尺寸 ==========
@@ -755,11 +778,11 @@
         // ========== 数据面板 ==========
         function updateDataPanel() {
             const ph = physics();
-            elTEnd.textContent = ph.tTrans > 0 ? ph.tTrans.toFixed(2) + ' s' : '—';
-            elVFin.textContent = ph.vFinal.toFixed(2) + ' m/s';
-            elRel.textContent  = ph.relDisp.toFixed(2) + ' m';
-            elSlide.textContent = ph.slideOff ? '✓ 滑出' : '✗ 未滑出';
-            elSlide.style.color = ph.slideOff ? '#ff6644' : '#33dd66';
+            elTEnd.textContent = ph.willSlideOff ? '—' : ph.tCommon.toFixed(2) + ' s';
+            elVFin.textContent = ph.willSlideOff ? '—' : ph.vCommon.toFixed(2) + ' m/s';
+            elRel.textContent  = ph.sRelCommon.toFixed(2) + ' m';
+            elSlide.textContent = ph.willSlideOff ? '✓ 滑出' : '✗ 未滑出';
+            elSlide.style.color = ph.willSlideOff ? '#ff6644' : '#33dd66';
             elHeat.textContent = ph.heat.toFixed(2) + ' J';
         }
 
