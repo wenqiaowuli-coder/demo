@@ -185,12 +185,12 @@
         </div>
         <div class="charts-row">
             <section class="chart-panel">
-                <div class="group-title">合速度-时间图 (v-t)</div>
-                <canvas id="vtChart" role="img" aria-label="合速度随时间变化图像"></canvas>
+                <div class="group-title">合速度大小-时间图 (v-t)</div>
+                <canvas id="vtChart" role="img" aria-label="合速度大小随时间变化图像"></canvas>
             </section>
             <section class="chart-panel">
-                <div class="group-title">合位移-时间图 (s-t)</div>
-                <canvas id="stChart" role="img" aria-label="合位移随时间变化图像"></canvas>
+                <div class="group-title">合位移大小-时间图 (s-t)</div>
+                <canvas id="stChart" role="img" aria-label="合位移大小随时间变化图像"></canvas>
             </section>
         </div>
         <div class="control-panel">
@@ -311,16 +311,8 @@
             const v = velocityOf(time);
             return Math.hypot(v.vx, v.vy);
         }
-        function pathLength(time) {
-            const n = 200;
-            const dt = time / n;
-            let s = 0;
-            for (let i = 0; i < n; i++) {
-                const t1 = i * dt;
-                const t2 = (i + 1) * dt;
-                s += (speedOf(t1) + speedOf(t2)) * 0.5 * dt;
-            }
-            return s;
+        function displacementMagnitude(time) {
+            return Math.hypot(xOf(time), yOf(time));
         }
 
         function niceCeil(value) {
@@ -681,9 +673,9 @@
 
         function drawCharts() {
             const vMax = Math.max(10, Math.ceil(v0Meters() * 1.05 / 5) * 5);
-            const sMax = niceCeil(Math.max(pathLength(tEnd()), 5) * 1.05);
+            const sMax = niceCeil(Math.max(displacementMagnitude(tEnd()), 5) * 1.05);
             drawChart(vtView, vtCtx, speedOf, 0, vMax, ' m/s', 'v (m/s)');
-            drawChart(stView, stCtx, pathLength, 0, sMax, ' m', 's (m)');
+            drawChart(stView, stCtx, displacementMagnitude, 0, sMax, ' m', 's (m)');
         }
 
         function render() {
